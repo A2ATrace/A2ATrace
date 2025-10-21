@@ -6,12 +6,12 @@ import chalk from "chalk";
 import express from "express";
 import { WebSocketServer } from "ws";
 
-// ✅ ESM-compatible __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// ✅ Always resolve relative to package root (cli/)
 const packageRoot = path.resolve(__dirname, "../..");
+
+// Keep a rolling history of last 100 spans
+let spans: any[] = [];
 
 export default async function startDashboard() {
   try {
@@ -21,50 +21,51 @@ export default async function startDashboard() {
     const agentsPath = path.join(configDir, "agents.json");
     const dockerComposePath = path.join(configDir, "docker-compose.yml");
 
-    // Ensure config exists
     if (!(await fs.pathExists(configPath))) {
-      console.error(
-        chalk.red("❌ Missing global config.json — run `a2a init` first")
-      );
+      console.error(chalk.red("❌ Missing global config.json — run `a2a init` first"));
       process.exit(1);
     }
 
     const config = await fs.readJson(configPath);
 
-    // Start docker compose
+    // Start Docker stack
     console.log(chalk.blue("🐳 Starting telemetry stack..."));
-    await execa("docker", ["compose", "-f", dockerComposePath, "up", "-d"], {
-      stdio: "inherit",
-    });
+    await execa("docker", ["compose", "-f", dockerComposePath, "up", "-d"], { stdio: "inherit" });
 
     console.log(chalk.green("✅ Telemetry stack running!"));
-    console.log(
-      chalk.gray("   Prometheus:"),
-      `http://localhost:${config.ports.prometheus}`
-    );
+    console.log(chalk.gray("   Prometheus:"), `http://localhost:${config.ports.prometheus}`);
     console.log(chalk.gray("   Loki:"), `http://localhost:${config.ports.loki}`);
-    console.log(
-      chalk.gray("   Tempo HTTP:"),
-      `http://localhost:${config.ports.tempoHttp || config.ports.tempo}`
-    );
-    console.log(
-      chalk.gray("   Tempo gRPC:"),
-      `localhost:${config.ports.tempoGrpc || "4317"}`
-    );
-    console.log(
-      chalk.gray("   Collector HTTP:"),
-      config.collector.endpointHttp
-    );
-    console.log(
-      chalk.gray("   Collector GRPC:"),
-      config.collector.endpointGrpc
-    );
+    console.log(chalk.gray("   Tempo HTTP:"), `http://localhost:${config.ports.tempoHttp}`);
+    console.log(chalk.gray("   Tempo gRPC:"), `localhost:${config.ports.tempoGrpc}`);
+    console.log(chalk.gray("   Collector HTTP:"), config.collector.endpointHttp);
+    console.log(chalk.gray("   Collector GRPC:"), config.collector.endpointGrpc);
 
-    // 🔹 Start Express server
     const app = express();
+    app.use(express.json());
+
     const dashboardPort = config.ports.dashboard || 4000;
 
-    // ✅ API route (dashboard metadata)
+    // 🔹 Ingest spans from collector
+    app.post("/ingest/v1/traces", (req, res) => {
+      const batch = req.body.resourceSpans || [];
+      if (batch.length > 0) {
+        console.log(chalk.green(`📥 Received ${batch.length} spans`));
+        spans.push(...batch);
+
+        // Trim to last 100 spans
+        spans = spans.slice(-100);
+
+        // Broadcast to WebSocket clients
+        wss.clients.forEach((client) => {
+          if (client.readyState === 1) {
+            client.send(JSON.stringify(batch));
+          }
+        });
+      }
+      res.status(200).end();
+    });
+
+    // 🔹 API to fetch current config + spans
     app.get("/api/config", async (_req, res) => {
       let agents: any[] = [];
       if (await fs.pathExists(agentsPath)) {
@@ -74,51 +75,39 @@ export default async function startDashboard() {
         telemetry: {
           prometheusUrl: `http://localhost:${config.ports.prometheus}`,
           lokiUrl: `http://localhost:${config.ports.loki}`,
-          tempoUrl: `http://localhost:${config.ports.tempoHttp || config.ports.tempo}`,
+          tempoHttpUrl: `http://localhost:${config.ports.tempoHttp}`,
           collectorHttp: config.collector.endpointHttp,
           collectorGrpc: config.collector.endpointGrpc,
-          ingestUrl: `http://localhost:${dashboardPort}/ingest`, // 👈 new
         },
         agents,
       });
     });
 
-    // ✅ Ingest route (collector → dashboard)
-    app.post("/ingest", express.json({ limit: "10mb" }), (req, res) => {
-      console.log("📥 Received spans:", JSON.stringify(req.body, null, 2));
-      res.status(200).send("ok");
+    app.get("/api/spans", (_req, res) => {
+      res.json(spans);
     });
 
-    // 🔹 Serve React dashboard build
-    let frontendPath = path.join(packageRoot, "client-dist"); // Published package
-
+    // Serve frontend build
+    let frontendPath = path.join(packageRoot, "client-dist");
     if (!(await fs.pathExists(frontendPath))) {
-      // Fallback for monorepo dev mode
       frontendPath = path.join(packageRoot, "../client/dist");
     }
 
-    console.log("DEBUG: __dirname =", __dirname);
-    console.log("DEBUG: checking frontendPath =", frontendPath);
-
     if (await fs.pathExists(frontendPath)) {
       console.log(chalk.green("✅ Serving frontend from:"), frontendPath);
-
       app.use(express.static(frontendPath));
-      app.get(/.*/, (_req, res) => {
-        res.sendFile(path.join(frontendPath, "index.html"));
-      });
+      app.get(/.*/, (_req, res) => res.sendFile(path.join(frontendPath, "index.html")));
     } else {
-      console.warn(
-        chalk.yellow("⚠️ No frontend build found — running in API-only mode")
-      );
+      console.warn(chalk.yellow("⚠️ No frontend build found — running in API-only mode"));
     }
 
-    // Start server
-    app.listen(dashboardPort, () => {
-      console.log(
-        chalk.cyan(`🌐 Dashboard running at http://localhost:${dashboardPort}`)
-      );
+    // Start server + WebSocket
+    const server = app.listen(dashboardPort, () => {
+      console.log(chalk.cyan(`🌐 Dashboard running at http://localhost:${dashboardPort}`));
     });
+
+    const wss = new WebSocketServer({ server });
+    console.log(chalk.green("📡 WebSocket server ready"));
   } catch (err) {
     console.error(chalk.red("❌ Failed to start dashboard stack:"), err);
   }

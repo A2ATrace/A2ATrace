@@ -18,12 +18,12 @@ export default async function init() {
   // 🔹 Dynamic HOST ports
   const collectorHttpPort = await findPort({ start: 4318 }); // host → container 4318
   const collectorGrpcPort = await findPort({ start: 55680 }); // host → container 55680
-  const promExporterPort = await findPort({ start: 9464 });
+  const promExporterPort = 8889;
   const promUiPort = await findPort({ start: 9090 });
   const lokiPort = await findPort({ start: 3100 });
-  const tempoHttpPort = await findPort({ start: 3200 });   // host → container 3200
-  const tempoGrpcPort = await findPort({ start: 4320 });   // host → container 4320 (instead of 4317)
-  const dashboardPort = await findPort({ start: 4000 });
+   const tempoHttpPort = await findPort({ start: 3200 }); // host → container 3200
+  const tempoGrpcPort = 4320 // host → container 4320
+  const dashboardPort = 4000;
 
   // 🔹 Global config.json (overwrite every time)
   const token = randomUUID();
@@ -59,9 +59,11 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
   otlp:
-    endpoint: "http://dashboard:4000/ingest"   # send traces to tempo’s gRPC port
+    endpoint: "tempo:4320"   # send traces to tempo’s gRPC port
     tls:
       insecure: true
+  otlphttp:
+    endpoint: "http://host.docker.internal:4000/ingest"
   debug: {}   # safe fallback for logs
 
 processors:
@@ -72,7 +74,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp, debug]
+      exporters: [otlp, otlphttp, debug]
     metrics:
       receivers: [otlp]
       processors: [batch]
@@ -102,7 +104,7 @@ scrape_configs:
   const tempoYaml = `
 server:
   http_listen_port: 3200
-  grpc_listen_port: ${tempoGrpcPort}
+  grpc_listen_port: 4320
 
 distributor:
   receivers:
@@ -167,7 +169,7 @@ services:
       - tempo-data:/tmp/tempo
     ports:
       - "${tempoHttpPort}:3200"
-      - "${tempoGrpcPort}:${tempoGrpcPort}"
+      - "4320:4320"
 
 volumes:
   tempo-data:
