@@ -59,7 +59,7 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
   otlp:
-    endpoint: "tempo:${tempoGrpcPort}"   # send traces to tempo’s gRPC port
+    endpoint: "http://dashboard:4000/ingest"   # send traces to tempo’s gRPC port
     tls:
       insecure: true
   debug: {}   # safe fallback for logs
@@ -72,11 +72,11 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp]
+      exporters: [otlphttp, debug]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [prometheus]
+      exporters: [prometheus, debug]
     logs:
       receivers: [otlp]
       processors: [batch]
