@@ -5,13 +5,13 @@ import { execa } from "execa";
 import chalk from "chalk";
 import express from "express";
 import { WebSocketServer } from "ws";
+import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "../..");
 
-// Keep a rolling history of last 100 spans
-let spans: any[] = [];
+let spans: any[] = []; // store last 100 spans
 
 export default async function startDashboard() {
   try {
@@ -42,30 +42,24 @@ export default async function startDashboard() {
 
     const app = express();
     app.use(express.json());
-
     const dashboardPort = config.ports.dashboard || 4000;
 
-    // 🔹 Ingest spans from collector
-    app.post("/ingest/v1/traces", (req, res) => {
+    // 🔹 Ingest spans from Collector
+    app.post("/ingest", (req, res) => {
       const batch = req.body.resourceSpans || [];
-      if (batch.length > 0) {
-        console.log(chalk.green(`📥 Received ${batch.length} spans`));
-        spans.push(...batch);
+      spans.push(...batch);
+      spans = spans.slice(-100); // keep last 100
 
-        // Trim to last 100 spans
-        spans = spans.slice(-100);
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1) {
+          client.send(JSON.stringify(batch));
+        }
+      });
 
-        // Broadcast to WebSocket clients
-        wss.clients.forEach((client) => {
-          if (client.readyState === 1) {
-            client.send(JSON.stringify(batch));
-          }
-        });
-      }
       res.status(200).end();
     });
 
-    // 🔹 API to fetch current config + spans
+    // 🔹 API: config info
     app.get("/api/config", async (_req, res) => {
       let agents: any[] = [];
       if (await fs.pathExists(agentsPath)) {
@@ -83,8 +77,41 @@ export default async function startDashboard() {
       });
     });
 
+    // 🔹 API: get last 100 spans
     app.get("/api/spans", (_req, res) => {
       res.json(spans);
+    });
+
+    // 🔹 API: query Prometheus
+    app.get("/api/metrics", async (req, res) => {
+      const q = req.query.q || "otelcol_receiver_accepted_spans";
+      try {
+        const resp = await fetch(
+          `http://localhost:${config.ports.prometheus}/api/v1/query?query=${encodeURIComponent(
+            q as string
+          )}`
+        );
+        const data = await resp.json();
+        res.json(data);
+      } catch (err) {
+        res.status(500).json({ error: "Failed to fetch metrics" });
+      }
+    });
+
+    // 🔹 API: query Loki
+    app.get("/api/logs", async (req, res) => {
+      const q = req.query.q || '{job="a2a-agents"}';
+      try {
+        const resp = await fetch(
+          `http://localhost:${config.ports.loki}/loki/api/v1/query?query=${encodeURIComponent(
+            q as string
+          )}`
+        );
+        const data = await resp.json();
+        res.json(data);
+      } catch (err) {
+        res.status(500).json({ error: "Failed to fetch logs" });
+      }
     });
 
     // Serve frontend build
@@ -107,7 +134,7 @@ export default async function startDashboard() {
     });
 
     const wss = new WebSocketServer({ server });
-    console.log(chalk.green("📡 WebSocket server ready"));
+    console.log(chalk.green("📡 WebSocket server ready on /"));
   } catch (err) {
     console.error(chalk.red("❌ Failed to start dashboard stack:"), err);
   }

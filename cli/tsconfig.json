@@ -11,5 +11,5 @@
     "rootDir": "src",          // 👈 points to your TypeScript sources
     "outDir": "dist"           // 👈 compiled JS goes here
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/server/proxy.ts"]
 }
