@@ -3,36 +3,36 @@ import path from "path";
 import { randomUUID } from "crypto";
 import chalk from "chalk";
 import findPort from "find-open-port";
-import { spawn } from "child_process";
+import os from "os";
 
 export default async function init() {
-  const homeDir = process.env.HOME || process.env.USERPROFILE!;
+  const homeDir = os.homedir();
   const configDir = path.join(homeDir, ".a2a");
   const configPath = path.join(configDir, "config.json");
   const collectorPath = path.join(configDir, "collector-config.yaml");
   const prometheusPath = path.join(configDir, "prometheus.yml");
   const tempoPath = path.join(configDir, "tempo.yaml");
   const dockerComposePath = path.join(configDir, "docker-compose.yml");
+  const registryPath = path.join(configDir, "agents.json");
 
   await fs.ensureDir(configDir);
 
   // 🔹 Dynamic HOST ports
   const collectorHttpPort = await findPort({ start: 4318 });
-  const collectorGrpcPort = await findPort({ start: 55680 });
+  const collectorGrpcPort = await findPort({ start: 4317 });
   const promExporterPort = 8889; // fixed inside container
   const promUiPort = await findPort({ start: 9090 });
   const lokiPort = await findPort({ start: 3100 });
   const tempoHttpPort = await findPort({ start: 3200 });
-  const tempoGrpcPort = 4320;
-  const dashboardPort = 4000;
+  const tempoGrpcPort = await findPort({ start: 4320 }); // unify everything on 4320
+  const dashboardPort = await findPort({ start: 4000 });
 
   // 🔹 Global config.json
-  const token = randomUUID();
   const config = {
+    registry: registryPath,
     collector: {
       endpointHttp: `http://localhost:${collectorHttpPort}/v1/traces`,
-      endpointGrpc: `http://localhost:${collectorGrpcPort}`,
-      token,
+      endpointGrpc: `http://localhost:${collectorGrpcPort}`
     },
     ports: {
       prometheus: promUiPort,
@@ -40,8 +40,14 @@ export default async function init() {
       tempoHttp: tempoHttpPort,
       tempoGrpc: tempoGrpcPort,
       prometheusExporter: promExporterPort,
-      dashboard: dashboardPort,
+      dashboard: dashboardPort
     },
+    files: {
+      collector: collectorPath,
+      prometheus: prometheusPath,
+      tempo: tempoPath,
+      dockerCompose: dockerComposePath
+    }
   };
   await fs.writeJson(configPath, config, { spaces: 2 });
   console.log(chalk.green("✅ Wrote global config.json with dynamic ports"));
@@ -54,7 +60,7 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
       grpc:
-        endpoint: 0.0.0.0:55680
+        endpoint: 0.0.0.0:4317
 
 exporters:
   prometheus:
@@ -65,8 +71,8 @@ exporters:
     tls:
       insecure: true
 
-  otlphttp/loki:
-    endpoint: "http://loki:3100/otlp"
+  loki:
+    endpoint: "http://loki:3100/loki/api/v1/push"
     tls:
       insecure: true
 
@@ -74,6 +80,17 @@ exporters:
 
 processors:
   batch: {}
+  resource:
+    attributes:
+      - key: service.namespace
+        value: a2a-agents
+        action: insert
+      - key: service.name
+        from_attribute: service.name
+        action: upsert
+      - key: agent.card.name
+        from_attribute: agent.card.name
+        action: upsert
 
 service:
   pipelines:
@@ -90,7 +107,7 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/loki, debug]
+      exporters: [loki, debug]
 `;
   await fs.writeFile(collectorPath, collectorYaml, "utf8");
 
@@ -106,7 +123,7 @@ scrape_configs:
 `;
   await fs.writeFile(prometheusPath, prometheusYaml, "utf8");
 
-  // 🔹 Tempo config
+  // 🔹 Tempo config (unify ports to 4320 gRPC, 3200 HTTP)
   const tempoYaml = `
 server:
   http_listen_port: 3200
@@ -151,7 +168,7 @@ services:
     volumes:
       - ${collectorPath}:/etc/otel-collector-config.yaml
     ports:
-      - "${collectorGrpcPort}:55680"
+      - "${collectorGrpcPort}:4317"
       - "${collectorHttpPort}:4318"
       - "${promExporterPort}:8889"
 
@@ -169,27 +186,26 @@ services:
       - "${lokiPort}:3100"
 
   tempo:
-    image: grafana/tempo:2.4.1
+    image: grafana/tempo:2.8.0
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ${tempoPath}:/etc/tempo.yaml
-      - tempo-data:/tmp/tempo
     ports:
       - "${tempoHttpPort}:3200"
-      - "4320:4320"
-
-volumes:
-  tempo-data:
+      - "${tempoGrpcPort}:4320"
 `;
   await fs.writeFile(dockerComposePath, dockerYaml, "utf8");
 
-  console.log(chalk.green('✅ Wrote docker-compose.yml with dynamic Tempo gRPC'));
+  console.log(chalk.green("✅ Wrote docker-compose.yml with dynamic ports"));
 
   // 🔹 Debug summary
   console.log(chalk.blue(`ℹ️ A2A initialized at ${configDir}`));
-  console.log(chalk.yellow('🔍 Debug info:'));
+  console.log(chalk.yellow("🔍 Debug info:"));
   console.log(chalk.yellow(`   Collector HTTP: http://localhost:${collectorHttpPort}/v1/traces`));
   console.log(chalk.yellow(`   Collector gRPC: localhost:${collectorGrpcPort}`));
+  console.log(chalk.yellow(`   Prometheus UI: http://localhost:${promUiPort}`));
+  console.log(chalk.yellow(`   Loki: http://localhost:${lokiPort}`));
   console.log(chalk.yellow(`   Tempo HTTP: http://localhost:${tempoHttpPort}`));
   console.log(chalk.yellow(`   Tempo gRPC: localhost:${tempoGrpcPort}`));
+  console.log(chalk.yellow(`   Dashboard (reserved): http://localhost:${dashboardPort}`));
 }

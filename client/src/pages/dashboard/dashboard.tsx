@@ -4,26 +4,13 @@ import { motion } from "framer-motion"
 import AgentCard from "../../components/agentcard/agentcard"
 import Navbar from "../../components/navbar/navbar"
 import TitleNav from "../../components/titlenav/titlenav"
+import SpansView from "../../components/metricsview/spansview";
+// import MetricsView from "../../components/metricsview/metricsview"
+// import LogsView from "../../components/metricsview/logsview"
+
 
 
 const Dashboard = () => {
-  const [metrics, setMetrics] = useState("");
-
-  useEffect(() => {
-    async function fetchMetrics() {
-      try {
-        const res = await fetch("http://localhost:9464/metrics");
-        const text = await res.text();
-        setMetrics(text);
-      } catch (err) {
-        setMetrics("❌ Failed to fetch metrics: " + err);
-      }
-    }
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 5000); // refresh every 5s
-    return () => clearInterval(interval);
-  }, []);
-
 
     return(
     <div className="dashboard-page">
@@ -50,6 +37,9 @@ const Dashboard = () => {
             <AgentCard />
             <AgentCard />
         </motion.div>
+        <SpansView />
+        {/* <MetricsView />
+        <LogsView /> */}
         </section>
     </div>
     )
