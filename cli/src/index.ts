@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import init from "./commands/init.js";
-import link from "./commands/link-agent.js";
-import injectOtel from "./commands/inject-otel.js";
+import inject from "./commands/inject.js";
+import link from "./commands/link.js";
+import agents from "./commands/agents.js"
 import startDashboard from "./commands/start-dashboard.js";
 
 const program = new Command();
@@ -17,13 +18,16 @@ program.command("init")
   .action(init);
 
 program.command("link")
-  .description("Link current project as an A2A agent")
-  .option("-n, --name <agentName>", "Agent name")
+  .description("Link current project as an A2A agent (uses agent-card.json)")
   .action(link);
 
-program.command("inject-otel")
-  .description("Inject OpenTelemetry setup into the current project")
-  .action(injectOtel);
+program.command("inject")
+  .description("Injecting relevant files for agent linking")
+  .action(inject);
+
+program.command("agents")
+  .description("Showing current agent registry")
+  .action(agents)
 
 program.command("start-dashboard")
   .description("Start local telemetry stack (collector, Prometheus, Loki, Tempo, dashboard)")

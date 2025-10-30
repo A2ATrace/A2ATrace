@@ -25,3 +25,4 @@ dist-ssr
 .env
 package.json
 package-lock.json
+client-dist

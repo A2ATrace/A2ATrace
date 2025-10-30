@@ -5,14 +5,11 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
-    "rootDir": "src",
-    "outDir": "dist"
+    "noImplicitAny": false,
+    "forceConsistentCasingInFileNames": true,
+    "rootDir": "src",          // 👈 points to your TypeScript sources
+    "outDir": "dist"           // 👈 compiled JS goes here
   },
-  "include": ["src/**/*.ts"],
-  "references": [
-    { "path": "./tsconfig.node.json" }
-  ]
+  "include": ["src/**/*.ts", "src/server/proxy.ts"]
 }
