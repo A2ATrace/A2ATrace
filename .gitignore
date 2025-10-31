@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+client-dist
 dist-ssr
 *.local
 
@@ -25,4 +26,3 @@ dist-ssr
 .env
 package.json
 package-lock.json
-client-dist
