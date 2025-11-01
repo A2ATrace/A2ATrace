@@ -1,1 +1,1 @@
-{"root":["./src/index.ts","./src/commands/init.ts","./src/commands/inject-otel.ts","./src/commands/link-agent.ts","./src/commands/start-dashboard.ts","./src/utils/telemetry.ts"],"version":"5.9.3"}
+{"root":["./src/demo-telemetry.ts","./src/index.ts","./src/commands/init.ts","./src/commands/inject-otel.ts","./src/commands/link-agent.ts","./src/commands/start-dashboard.ts","./src/utils/telemetry.ts"],"version":"5.9.3"}
