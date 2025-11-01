@@ -52,6 +52,10 @@ async function loadAgents() {
   }
   return [];
 }
+//  Get agent list from registry
+app.get("/api/agents", async (_req, res) => {
+  res.json({ agents: await loadAgents() });
+});
 
 // ---- Metrics: returns { agents: [{ agent, metrics }] } ----
 app.get("/api/metrics", async (_req, res) => {
@@ -64,7 +68,7 @@ app.get("/api/metrics", async (_req, res) => {
         const serviceName = agent.name;
         const promQL = `questions_total{service_name="${serviceName}"}`;
         const r = await fetch(
-          `http://localhost:${config.ports.prometheus}/api/v1/query?query=${encodeURIComponent(promQL)}`
+          `http://localhost:${config.ports.prometheus}/api/v1/query?query=${encodeURIComponent("questions_total")}`
         );
         const metrics = await r.json();
         return { agent: serviceName, metrics };
@@ -86,11 +90,15 @@ app.get("/api/logs", async (_req, res) => {
     const results = await Promise.all(
       agents.map(async (agent: any) => {
         const serviceName = agent.name;
+        console.log(serviceName)
         const logQL = `{service_name="${serviceName}"}`;
+        const endNs = Date.now() * 1e6;
+        const startNs = endNs - 5 * 60 * 1e9;
         const r = await fetch(
-          `http://localhost:${config.ports.loki}/loki/api/v1/query?query=${encodeURIComponent(logQL)}`
+          `http://localhost:${config.ports.loki}/loki/api/v1/query_range?query=${encodeURIComponent(`{job=~".+"}`)}&direction=BACKWARD&limit=100&start=${startNs}&end=${endNs}&step=5s`
         );
         const logs = await r.json();
+        console.log("agent:", logs)
         return { agent: serviceName, logs };
       })
     );
@@ -110,7 +118,7 @@ app.get("/api/traces", async (_req, res) => {
     const results = await Promise.all(
       agents.map(async (agent: any) => {
         const serviceName = agent.name;
-        const url = `http://localhost:${config.ports.tempoHttp}/api/search?serviceName=${encodeURIComponent(serviceName)}&limit=5`;
+        const url = `http://localhost:${config.ports.tempoHttp}/api/search`;
         const r = await fetch(url);
         const ct = r.headers.get("content-type") || "";
         const traces = ct.includes("application/json") ? await r.json() : { error: await r.text() };

@@ -1,5 +1,5 @@
 import "./dashboard.scss"
-import { use, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import AgentCard from "../../components/agentcard/agentcard"
 import Navbar from "../../components/navbar/navbar"
@@ -11,6 +11,17 @@ import SpansView from "../../components/metricsview/spansview";
 
 
 const Dashboard = () => {
+  const [agents, setAgents] = useState<any[]>([])  
+
+  useEffect(() => {
+    async function fetchAgents() {
+      const res = await fetch("/api/agents");
+      const json = await res.json();
+      setAgents(json.agents || [])
+    }
+    fetchAgents();
+  }, []);
+
 
     return(
     <div className="dashboard-page">
@@ -30,16 +41,11 @@ const Dashboard = () => {
         },
       }}
         >
-            <AgentCard />
-            <AgentCard />
-            <AgentCard />
-            <AgentCard />
-            <AgentCard />
-            <AgentCard />
+          {agents.map(agent => (
+            <AgentCard key={agent.name} agent={agent}/>
+          ))}  
         </motion.div>
         <SpansView />
-        {/* <MetricsView />
-        <LogsView /> */}
         </section>
     </div>
     )
