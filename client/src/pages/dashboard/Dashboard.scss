@@ -1,0 +1,39 @@
+.dashboard-body-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 5rem;
+  background-color: white;
+  flex-direction: column;
+  margin: 5rem 0 0 17rem;
+  transition: margin-left 0.3s ease, padding-left 0.3s ease;
+}
+
+.dashboard-body-wrapper.nav-hidden {
+  margin-left: 0;
+  padding-left: calc(50vw - 500px);
+}
+
+.dashboard-page {
+  display: flex;
+  flex-direction: row;
+  background: linear-gradient(180deg, #f4f6f8 0%, #e9ecf1 100%);
+  color: #222;
+}
+
+.agent-wrapper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.dashboard-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.1rem;
+  color: #666;
+  font-style: italic;
+}

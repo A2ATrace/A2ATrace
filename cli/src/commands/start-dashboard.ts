@@ -47,8 +47,12 @@ export default async function startDashboard() {
       chalk.gray('   Loki:'),
       `http://localhost:${config.ports.loki}`
     );
-   console.log(chalk.gray("   Tempo HTTP:"), `http://localhost:${config.ports.tempoHttp}`);
-   console.log(chalk.gray("   Tempo gRPC:"), `localhost:${config.ports.tempoGrpc}`); 
+    console.log(
+      chalk.gray('   Tempo:'),
+      `http://localhost:${
+        config.ports.tempo || config.ports.tempoHttp || 37039
+      }`
+    );
 
     console.log(
       chalk.gray('   Collector HTTP:'),
@@ -176,6 +180,59 @@ export default async function startDashboard() {
         }
       });
     }
+
+    // =========================
+    // Proxy Grafana requests
+    // =========================
+    const grafanaPort = 4001; // Direct Grafana container port
+    app.use('/grafana', async (req, res) => {
+      try {
+        const targetUrl = `http://127.0.0.1:${grafanaPort}${req.originalUrl}`;
+        const headers: Record<string, string> = {
+          Authorization: 'Basic ' + Buffer.from('admin:a2a').toString('base64'),
+        };
+
+        // Copy relevant headers from original request
+        if (req.headers['content-type']) {
+          headers['Content-Type'] = req.headers['content-type'] as string;
+        }
+
+        const options: RequestInit = {
+          method: req.method,
+          headers,
+        };
+
+        // Handle body for POST/PUT requests
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+          options.body = JSON.stringify(req.body);
+        }
+
+        const response = await fetch(targetUrl, options);
+
+        // Copy response headers
+        response.headers.forEach((value, name) => {
+          res.setHeader(name, value);
+        });
+
+        res.status(response.status);
+
+        // Handle different content types
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          res.json(data);
+        } else if (contentType.includes('text/')) {
+          const text = await response.text();
+          res.send(text);
+        } else {
+          const buffer = await response.arrayBuffer();
+          res.send(Buffer.from(buffer));
+        }
+      } catch (e) {
+        console.error('Grafana proxy error:', e);
+        res.status(500).json({ error: String(e) });
+      }
+    });
 
     // =========================
     // Serve React dashboard build

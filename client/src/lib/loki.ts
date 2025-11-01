@@ -4,7 +4,7 @@ export type LokiLine = {
   line: string;
 };
 
-function nsToMs(ns: string) {
+function nsToMs(ns: string): number {
   return Number(BigInt(ns) / 1_000_000n);
 }
 

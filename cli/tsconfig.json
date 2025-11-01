@@ -9,7 +9,7 @@
     "noImplicitAny": false,
     "forceConsistentCasingInFileNames": true,
     "rootDir": "src", // 👈 points to your TypeScript sources
-    "outDir": "dist" // 👈 compiled JS goes here
+    "outDir": "dist", // 👈 compiled JS goes here
   },
   "include": ["src/**/*.ts"]
 }

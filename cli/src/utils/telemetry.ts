@@ -1,18 +1,20 @@
-import fs from "fs-extra";
-import { NodeSDK } from "@opentelemetry/sdk-node";
+import fs from 'fs-extra';
+import { NodeSDK } from '@opentelemetry/sdk-node';
 import {
   detectResources,
   resourceFromAttributes,
-} from "@opentelemetry/resources";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
-import { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
+} from '@opentelemetry/resources';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import {
   LoggerProvider,
   BatchLogRecordProcessor,
-} from "@opentelemetry/sdk-logs";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
+} from '@opentelemetry/sdk-logs';
+import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 
 export async function startTelemetry(agentConfigPath: string) {
   const config = await fs.readJson(agentConfigPath);
@@ -21,23 +23,26 @@ export async function startTelemetry(agentConfigPath: string) {
   const detected = await detectResources();
   const custom = resourceFromAttributes({
     [SemanticResourceAttributes.SERVICE_NAME]: config.agentName,
-    "a2a.agent.id": config.agentId,
-    "a2a.agent.role": config.role || "",
-    "a2a.agent.connected": (config.connectedAgents || []).join(","),
-    "a2a.agent.methods": (config.methods || []).join(","),
+    'a2a.agent.id': config.agentId,
+    'a2a.agent.role': config.role || '',
+    'a2a.agent.connected': (config.connectedAgents || []).join(','),
+    'a2a.agent.methods': (config.methods || []).join(','),
   });
   const mergedResource = detected.merge(custom);
 
-  // 🔹 Metrics
-  const prometheusPort = config.metricPort || 9464;
-  const prometheusExporter = new PrometheusExporter({ port: prometheusPort });
-  console.log(
-    `📊 Prometheus metrics available at http://localhost:${prometheusPort}/metrics`
-  );
+  // 🔹 Metrics (using OTLP exporter instead of Prometheus for compatibility)
+  const metricExporter = new OTLPMetricExporter({
+    url: config.endpoint.replace('/v1/traces', '/v1/metrics'),
+    headers: { Authorization: `Bearer ${config.token}` },
+  });
+  const metricReader = new PeriodicExportingMetricReader({
+    exporter: metricExporter,
+    exportIntervalMillis: 10000,
+  });
 
   // 🔹 Logs
   const logExporter = new OTLPLogExporter({
-    url: config.endpoint.replace("/traces", "/logs"),
+    url: config.endpoint.replace('/traces', '/logs'),
     headers: { Authorization: `Bearer ${config.token}` },
   });
   const loggerProvider = new LoggerProvider({
@@ -53,7 +58,7 @@ export async function startTelemetry(agentConfigPath: string) {
   // 🔹 Start Node OTel SDK
   const sdk = new NodeSDK({
     traceExporter,
-    metricReader: prometheusExporter,
+    metricReader,
     instrumentations: [getNodeAutoInstrumentations()],
     resource: mergedResource,
   });
@@ -61,11 +66,11 @@ export async function startTelemetry(agentConfigPath: string) {
   await sdk.start();
   console.log(`📡 Telemetry started for agent: ${config.agentName}`);
 
-  process.on("SIGTERM", async () => {
+  process.on('SIGTERM', async () => {
     await sdk.shutdown();
     await loggerProvider.shutdown();
   });
-  process.on("SIGINT", async () => {
+  process.on('SIGINT', async () => {
     await sdk.shutdown();
     await loggerProvider.shutdown();
   });

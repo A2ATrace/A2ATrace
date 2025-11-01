@@ -1,0 +1,15 @@
+{
+  "agentId": "2d37f68e-c839-456f-8fe8-04a588eaec5c",
+  "agentName": "A2ATrace",
+  "role": "Agent",
+  "connectedAgents": [
+    ""
+  ],
+  "methods": [
+    ""
+  ],
+  "endpoint": "http://localhost:37641/v1/traces",
+  "grpcEndpoint": "http://localhost:39867",
+  "token": "e8c89f82-4903-4435-981e-60907be75e63",
+  "metricPort": 32923
+}

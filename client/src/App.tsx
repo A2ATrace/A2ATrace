@@ -1,19 +1,20 @@
-// import { useState } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import './App.scss'
-import Dashboard from './pages/dashboard/dashboard'
+// src/App.tsx
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Dashboard from './pages/dashboard/Dashboard';
+import Statistics from './pages/statistics/Statistics';
+import Configuration from './pages/configuration/Configuration';
+import Visualizer from './pages/visualizer/Visualizer';
 
 function App() {
-
   return (
-   <Router>
-    <div className='body-wrapper'>
-    <Routes>
-      <Route path="/" element={<Dashboard />}/>
-    </Routes>
-    </div>
-   </Router>
-  )
+    <Router>
+      <Routes>
+        <Route path='/' element={<Dashboard />} />
+        <Route path='/config' element={<Configuration />} />
+        <Route path='/visualizer' element={<Visualizer />} />
+        <Route path='/statistics' element={<Statistics />} />
+      </Routes>
+    </Router>
+  );
 }
-
-export default App
+export default App;
