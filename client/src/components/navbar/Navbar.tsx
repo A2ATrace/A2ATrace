@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom';
 import './Navbar.scss';
-import gearIcon from '../../assets/gear.png';
 
 type NavbarProps = {
   isVisible?: boolean;
@@ -27,10 +26,6 @@ const Navbar = ({ isVisible = true }: NavbarProps) => {
             Agent Statistics
           </NavLink>
         </nav>
-        <a href='#' className='settings-wrapper' aria-label='Settings'>
-          <img className='gear' src={gearIcon} alt='' aria-hidden='true' />
-          <div className='settings'>Settings</div>
-        </a>
       </div>
     </aside>
   );

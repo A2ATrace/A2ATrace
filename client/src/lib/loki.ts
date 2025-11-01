@@ -4,8 +4,12 @@ export type LokiLine = {
   line: string;
 };
 
+// Constants
+const NS_PER_MS = 1_000_000;
+const MS_PER_MINUTE = 60_000;
+
 function nsToMs(ns: string): number {
-  return Number(BigInt(ns) / 1_000_000n);
+  return Number(BigInt(ns) / BigInt(NS_PER_MS));
 }
 
 export async function fetchAgentLogs(
@@ -14,7 +18,7 @@ export async function fetchAgentLogs(
   limit = 200
 ): Promise<LokiLine[]> {
   const end = Date.now();
-  const start = end - lookbackMin * 60_000;
+  const start = end - lookbackMin * MS_PER_MINUTE;
   const selector = `{service_name="${serviceName}"}`;
   const qs = new URLSearchParams({
     query: selector,

@@ -4,21 +4,32 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-function getDashboardTarget() {
+function getConfig() {
   try {
     const cfgPath = path.join(os.homedir(), '.a2a', 'config.json');
     const raw = fs.readFileSync(cfgPath, 'utf8');
     const cfg = JSON.parse(raw);
-    const port = cfg?.ports?.dashboard ?? 43333;
-    return `http://127.0.0.1:${port}`;
+    return {
+      dashboardPort: cfg?.ports?.dashboard ?? 43333,
+      grafanaUser: cfg?.grafana?.user ?? 'admin',
+      grafanaPassword: cfg?.grafana?.password ?? 'a2a',
+    };
   } catch {
     // Fallback for first-run before init or if config is missing
-    return 'http://127.0.0.1:43333';
+    return {
+      dashboardPort: 43333,
+      grafanaUser: 'admin',
+      grafanaPassword: 'a2a',
+    };
   }
 }
 
-const dashboardTarget = getDashboardTarget();
+const config = getConfig();
+const dashboardTarget = `http://127.0.0.1:${config.dashboardPort}`;
 const grafanaTarget = 'http://127.0.0.1:4001'; // Grafana container port
+const grafanaAuth = Buffer.from(
+  `${config.grafanaUser}:${config.grafanaPassword}`
+).toString('base64');
 
 export default defineConfig({
   plugins: [react()],
@@ -37,8 +48,8 @@ export default defineConfig({
         target: grafanaTarget,
         changeOrigin: true,
         headers: {
-          // Basic auth for admin:a2a (as provisioned in docker-compose)
-          Authorization: 'Basic ' + Buffer.from('admin:a2a').toString('base64'),
+          // Basic auth from config (configurable via env vars)
+          Authorization: `Basic ${grafanaAuth}`,
         },
         // no rewrite!
       },

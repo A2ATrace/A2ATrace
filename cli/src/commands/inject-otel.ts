@@ -1,34 +1,37 @@
-import fs from "fs-extra";
-import path from "path";
-import chalk from "chalk";
+import fs from 'fs-extra';
+import path from 'path';
+import chalk from 'chalk';
+import { logger } from '../utils/logger.js';
 
 export default async function injectOtel() {
   try {
     const cwd = process.cwd();
-    const agentConfigPath = path.join(cwd, ".a2a.config.json");
+    const agentConfigPath = path.join(cwd, '.a2a.config.json');
 
     if (!(await fs.pathExists(agentConfigPath))) {
-      console.error(
-        chalk.red("❌ No .a2a.config.json found. Run `a2a link` first.")
+      logger.error(
+        chalk.red('❌ No .a2a.config.json found. Run `a2a link` first.')
       );
       process.exit(1);
     }
 
     const agentConfig = await fs.readJson(agentConfigPath);
-    const readmePath = path.join(cwd, "a2a.README.md");
+    const readmePath = path.join(cwd, 'a2a.README.md');
 
     const readmeContent = `# A2A Telemetry Setup for ${agentConfig.agentName}
 
-**Role:** ${agentConfig.role || "N/A"}  
-**Connected Agents:** ${agentConfig.connectedAgents?.join(", ") || "None"}  
-**Methods:** ${agentConfig.methods?.join(", ") || "None"}  
+**Role:** ${agentConfig.role || 'N/A'}  
+**Connected Agents:** ${agentConfig.connectedAgents?.join(', ') || 'None'}  
+**Methods:** ${agentConfig.methods?.join(', ') || 'None'}  
 
 This agent is configured with \`.a2a.config.json\`.  
 Telemetry data will be sent to:
 
 - Collector (HTTP): \`${agentConfig.endpoint}\`  
 - Collector (gRPC): \`${agentConfig.grpcEndpoint}\`  
-- Metrics (Prometheus Exporter): \`http://localhost:${agentConfig.metricPort}/metrics\`  
+- Metrics (Prometheus Exporter): \`http://localhost:${
+      agentConfig.metricPort
+    }/metrics\`  
 
 ---
 
@@ -92,11 +95,11 @@ print(f"📡 Telemetry started for {config['agentName']} on {config['endpoint']}
 \`\`\`
 `;
 
-    await fs.writeFile(readmePath, readmeContent, "utf8");
+    await fs.writeFile(readmePath, readmeContent, 'utf8');
 
-    console.log(chalk.green("✅ OTel setup injected successfully!"));
-    console.log(chalk.gray(`File created: ${readmePath}`));
+    logger.info('✅ OTel setup injected successfully!');
+    logger.info(`File created: ${readmePath}`);
   } catch (err) {
-    console.error(chalk.red("❌ Failed to inject OTel setup:"), err);
+    logger.error(chalk.red('❌ Failed to inject OTel setup:'), err);
   }
 }

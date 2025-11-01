@@ -3,9 +3,14 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import chalk from 'chalk';
 import findPort from 'find-open-port';
+import { logger } from '../utils/logger.js';
 
 export default async function init() {
-  const homeDir = process.env.HOME || process.env.USERPROFILE!;
+  const homeDir = process.env.HOME || process.env.USERPROFILE;
+  if (!homeDir) {
+    logger.error('Could not determine home directory');
+    process.exit(1);
+  }
   const configDir = path.join(homeDir, '.a2a');
 
   // Write the file your app actually reads:
@@ -54,6 +59,9 @@ export default async function init() {
 
   // 🔹 Global app config (overwrite every time)
   const token = randomUUID();
+  const grafanaUser = process.env.GRAFANA_ADMIN_USER || 'admin';
+  const grafanaPassword = process.env.GRAFANA_ADMIN_PASSWORD || 'a2a';
+
   const globalConfig = {
     collector: {
       endpointHttp: `http://localhost:${collectorHttpPort}/v1/traces`,
@@ -67,12 +75,16 @@ export default async function init() {
       prometheusExporter: promExporterPort,
       dashboard: dashboardPort,
     },
+    grafana: {
+      user: grafanaUser,
+      password: grafanaPassword,
+    },
   };
 
   // Write to config.json (not a2a.config.json - that's for agents)
   const globalConfigPath = path.join(configDir, 'config.json');
   await fs.writeJson(globalConfigPath, globalConfig, { spaces: 2 });
-  console.log(chalk.green('✅ Wrote config.json'));
+  logger.info('✅ Wrote config.json');
 
   // Also create a default agent config for A2ATrace itself
   const agentConfig = {
@@ -86,8 +98,9 @@ export default async function init() {
     token: globalConfig.collector.token,
     metricPort: promExporterPort,
   };
-  await fs.writeJson(configPath, agentConfig, { spaces: 2 });
-  console.log(chalk.green('✅ Wrote a2a.config.json for A2ATrace agent'));
+  const agentConfigPath = path.join(process.cwd(), '.a2a.config.json');
+  await fs.writeJson(agentConfigPath, agentConfig, { spaces: 2 });
+  logger.info('✅ Wrote a2a.config.json for A2ATrace agent');
 
   // 🔹 Collector config (listen on standard OTLP ports internally, export to Tempo)
   const collectorYaml = `
@@ -127,7 +140,7 @@ service:
       exporters: [debug]
 `;
   await fs.writeFile(collectorPath, collectorYaml, 'utf8');
-  console.log(chalk.green('✅ Wrote collector-config.yaml'));
+  logger.info('✅ Wrote collector-config.yaml');
 
   // 🔹 Prometheus config (scrape collector’s Prom exporter)
   const prometheusYaml = `
@@ -140,7 +153,7 @@ scrape_configs:
       - targets: ["otel-collector:8889"]
 `;
   await fs.writeFile(prometheusPath, prometheusYaml, 'utf8');
-  console.log(chalk.green('✅ Wrote prometheus.yml'));
+  logger.info('✅ Wrote prometheus.yml');
 
   // 🔹 Tempo config (keep gRPC internal on 4317; expose only HTTP)
   const tempoYaml = `
@@ -175,7 +188,7 @@ storage:
       path: /tmp/tempo/blocks
 `;
   await fs.writeFile(tempoPath, tempoYaml, 'utf8');
-  console.log(chalk.green('✅ Wrote tempo.yaml'));
+  logger.info('✅ Wrote tempo.yaml');
 
   // 🔹 Docker Compose (map host ports from config to standard internal ports)
   const dockerYaml = `
@@ -189,6 +202,12 @@ services:
       - "127.0.0.1:${collectorHttpPort}:4318"   # OTLP/HTTP (host:container)
       - "127.0.0.1:${collectorGrpcPort}:4317"   # OTLP/gRPC (host:container)
       - "127.0.0.1:${promExporterPort}:8889"    # Prometheus metrics from collector
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   prometheus:
     image: prom/prometheus:latest
@@ -196,12 +215,24 @@ services:
       - ${prometheusPath}:/etc/prometheus/prometheus.yml:ro
     ports:
       - "127.0.0.1:${promUiPort}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   loki:
     image: grafana/loki:2.9.4
     command: -config.file=/etc/loki/local-config.yaml
     ports:
       - "127.0.0.1:${lokiPort}:3100"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   tempo:
     image: grafana/tempo:2.4.1
@@ -211,6 +242,12 @@ services:
       - tempo-data:/tmp/tempo
     ports:
       - "127.0.0.1:${tempoHttpPort}:3200"  # Tempo HTTP/UI
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   grafana:
     image: grafana/grafana:latest
@@ -222,27 +259,36 @@ services:
       - GF_AUTH_BASIC_ENABLED=true
       - GF_AUTH_DISABLE_LOGIN_FORM=false
       - GF_EXPLORE_ENABLED=true
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=a2a
+      - GF_SECURITY_ADMIN_USER=${grafanaUser}
+      - GF_SECURITY_ADMIN_PASSWORD=${grafanaPassword}
       - GF_FEATURE_TOGGLES_ENABLE=accessControl,rbac,florenceAccessControl
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_SERVER_ROOT_URL=/grafana
     ports:
       - "127.0.0.1:4001:3000"
     depends_on:
-      - prometheus
-      - loki
-      - tempo
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
     volumes:
       - grafana-data:/var/lib/grafana
       - ${grafanaProvisioningDir}:/etc/grafana/provisioning:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 volumes:
   tempo-data:
   grafana-data:
 `;
   await fs.writeFile(dockerComposePath, dockerYaml, 'utf8');
-  console.log(
+  logger.info(
     chalk.green('✅ Wrote docker-compose.yml with dynamic port mappings')
   );
 
@@ -283,7 +329,7 @@ datasources:
 `;
   await fs.ensureDir(path.dirname(grafanaDatasourcesPath));
   await fs.writeFile(grafanaDatasourcesPath, grafanaDatasourcesYaml, 'utf8');
-  console.log(chalk.green('✅ Wrote Grafana datasources.yml'));
+  logger.info('✅ Wrote Grafana datasources.yml');
 
   // 🔹 Grafana dashboards provisioning
   const grafanaDashboardsYaml = `
@@ -302,98 +348,7 @@ providers:
 `;
   await fs.ensureDir(path.dirname(grafanaDashboardsPath));
   await fs.writeFile(grafanaDashboardsPath, grafanaDashboardsYaml, 'utf8');
-  console.log(chalk.green('✅ Wrote Grafana dashboards.yml'));
-
-  // 🔹 A2A Overview dashboard (basic metrics + link to Explore)
-  const a2aOverviewDashboard = {
-    annotations: { list: [] },
-    editable: true,
-    fiscalYearStartMonth: 0,
-    graphTooltip: 0,
-    id: null,
-    links: [],
-    liveNow: false,
-    panels: [
-      {
-        type: 'text',
-        title: 'Welcome',
-        gridPos: { x: 0, y: 0, w: 24, h: 4 },
-        options: {
-          mode: 'markdown',
-          content:
-            'Use Explore for traces: [Open Tempo Explore](/grafana/explore?orgId=1)\n\nQuery: `{ service.name = "A2ATrace" }`',
-        },
-      },
-      {
-        type: 'timeseries',
-        title: 'Spans received (rate)',
-        datasource: { type: 'prometheus', uid: 'PROM' },
-        fieldConfig: { defaults: { unit: 'spm' }, overrides: [] },
-        gridPos: { x: 0, y: 4, w: 24, h: 8 },
-        options: { legend: { displayMode: 'table', placement: 'bottom' } },
-        targets: [
-          {
-            refId: 'A',
-            expr: 'rate(otelcol_receiver_accepted_spans[5m])',
-            legendFormat: 'accepted',
-          },
-          {
-            refId: 'B',
-            expr: 'rate(otelcol_exporter_sent_spans[5m])',
-            legendFormat: 'exported',
-          },
-        ],
-      },
-      {
-        type: 'stat',
-        title: 'Accepted spans (last 15m)',
-        datasource: { type: 'prometheus', uid: 'PROM' },
-        gridPos: { x: 0, y: 12, w: 12, h: 6 },
-        options: { reduceOptions: { calcs: ['lastNotNull'], values: false } },
-        targets: [
-          {
-            refId: 'A',
-            expr: 'sum(increase(otelcol_receiver_accepted_spans[15m]))',
-          },
-        ],
-      },
-      {
-        type: 'stat',
-        title: 'Exported spans (last 15m)',
-        datasource: { type: 'prometheus', uid: 'PROM' },
-        gridPos: { x: 12, y: 12, w: 12, h: 6 },
-        options: { reduceOptions: { calcs: ['lastNotNull'], values: false } },
-        targets: [
-          {
-            refId: 'A',
-            expr: 'sum(increase(otelcol_exporter_sent_spans[15m]))',
-          },
-        ],
-      },
-    ],
-    refresh: '10s',
-    schemaVersion: 39,
-    style: 'dark',
-    tags: ['a2a', 'overview'],
-    templating: { list: [] },
-    time: { from: 'now-6h', to: 'now' },
-    timepicker: {},
-    timezone: '',
-    title: 'A2A Overview',
-    uid: 'a2a-overview',
-    version: 1,
-  } as const;
-
-  await fs.writeFile(
-    grafanaOverviewDashboardPath,
-    JSON.stringify(a2aOverviewDashboard, null, 2),
-    'utf8'
-  );
-  console.log(chalk.green('✅ Wrote Grafana dashboard: A2A Overview'));
-
-  await fs.ensureDir(path.dirname(grafanaDashboardsPath));
-  await fs.writeFile(grafanaDashboardsPath, grafanaDashboardsYaml, 'utf8');
-  console.log(chalk.green('✅ Wrote Grafana dashboards.yml'));
+  logger.info('✅ Wrote Grafana dashboards.yml');
 
   // 🔹 A2A Overview Dashboard JSON
   const overviewDashboard = {
@@ -494,7 +449,7 @@ providers:
     JSON.stringify(overviewDashboard, null, 2),
     'utf8'
   );
-  console.log(chalk.green('✅ Wrote A2A Overview dashboard'));
+  logger.info('✅ Wrote A2A Overview dashboard');
 
   // 🔹 Grafana access-control provisioning (allow Explore for Viewer/anonymous)
   const grafanaAccessYaml = `
@@ -514,33 +469,33 @@ role_assignments:
 `;
   await fs.ensureDir(path.dirname(grafanaAccessControlPath));
   await fs.writeFile(grafanaAccessControlPath, grafanaAccessYaml, 'utf8');
-  console.log(
+  logger.info(
     chalk.green('✅ Wrote Grafana access-control (Explore for Viewer)')
   );
 
   // 🔹 Debug summary (reflect the actual, exposed ports)
-  console.log(chalk.blue(`\nℹ️ A2A initialized at ${configDir}`));
-  console.log(chalk.yellow('\n🔍 Service endpoints:'));
-  console.log(
+  logger.info(`\nℹ️ A2A initialized at ${configDir}`);
+  logger.info('\n🔍 Service endpoints:');
+  logger.info(
     chalk.yellow(
       `   Collector HTTP: http://localhost:${collectorHttpPort}/v1/traces`
     )
   );
-  console.log(
+  logger.info(
     chalk.yellow(`   Collector gRPC: localhost:${collectorGrpcPort}`)
   );
-  console.log(
+  logger.info(
     chalk.yellow(`   Prometheus UI:  http://localhost:${promUiPort}`)
   );
-  console.log(chalk.yellow(`   Loki:           http://localhost:${lokiPort}`));
-  console.log(
+  logger.info(`   Loki:           http://localhost:${lokiPort}`);
+  logger.info(
     chalk.yellow(`   Tempo HTTP:     http://localhost:${tempoHttpPort}`)
   );
-  console.log(chalk.yellow(`   Grafana:        http://localhost:4001`));
-  console.log(
+  logger.info(`   Grafana:        http://localhost:4001`);
+  logger.info(
     chalk.yellow(`   Dashboard:      http://localhost:${dashboardPort}`)
   );
-  console.log(
+  logger.info(
     chalk.cyan('\n💡 Run `a2a start-dashboard` to start the telemetry stack')
   );
 }

@@ -7,7 +7,6 @@ import {
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import {
@@ -15,6 +14,7 @@ import {
   BatchLogRecordProcessor,
 } from '@opentelemetry/sdk-logs';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
+import { logger } from './logger.js';
 
 export async function startTelemetry(agentConfigPath: string) {
   const config = await fs.readJson(agentConfigPath);
@@ -64,7 +64,7 @@ export async function startTelemetry(agentConfigPath: string) {
   });
 
   await sdk.start();
-  console.log(`📡 Telemetry started for agent: ${config.agentName}`);
+  logger.info(`📡 Telemetry started for agent: ${config.agentName}`);
 
   process.on('SIGTERM', async () => {
     await sdk.shutdown();

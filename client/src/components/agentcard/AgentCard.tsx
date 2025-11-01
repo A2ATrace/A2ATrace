@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchAgentLogs } from '../../lib/loki'; // value
 import type { LokiLine } from '../../lib/loki'; // type
 
+// Constants
+const MS_PER_MINUTE = 60_000;
+const DEFAULT_REFRESH_MS = 5000;
+
 type Props = {
   serviceName: string;
   lookbackMin?: number;
@@ -13,30 +17,29 @@ type Props = {
 export default function AgentCard({
   serviceName,
   lookbackMin = 5,
-  refreshMs = 5000,
+  refreshMs = DEFAULT_REFRESH_MS,
 }: Props) {
   const [lines, setLines] = useState<LokiLine[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
-    try {
-      setLoading(true);
-      const data = await fetchAgentLogs(serviceName, lookbackMin, 250);
-      setLines(data);
-      setErr(null);
-    } catch (error) {
-      setErr(error instanceof Error ? error.message : String(error));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        const data = await fetchAgentLogs(serviceName, lookbackMin, 250);
+        setLines(data);
+        setErr(null);
+      } catch (error) {
+        setErr(error instanceof Error ? error.message : String(error));
+      } finally {
+        setLoading(false);
+      }
+    }
+
     load();
     const t = setInterval(load, refreshMs);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceName, lookbackMin, refreshMs]);
 
   const { online, lastTs, lastLine, lastTo, errorCount } = useMemo(() => {
@@ -50,7 +53,7 @@ export default function AgentCard({
       };
     const now = Date.now();
     const newest = lines[0];
-    const online = now - newest.tsMs < 60_000;
+    const online = now - newest.tsMs < MS_PER_MINUTE;
     const lastTo = newest.labels['a2a_to'] || newest.labels['a2a.to'] || '';
     const errorCount = lines.filter(
       (l) =>
