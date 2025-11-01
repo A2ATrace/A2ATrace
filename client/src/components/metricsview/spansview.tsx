@@ -14,7 +14,7 @@ export default function SignalsView() {
       setMetrics(json.agents || []);
     }
     fetchMetrics();
-    const interval = setInterval(fetchMetrics, 5000);
+    const interval = setInterval(fetchMetrics, 20000);
     return () => clearInterval(interval);
   }, []);
 
@@ -27,7 +27,7 @@ export default function SignalsView() {
       setLogs(json.agents || []);
     }
     fetchLogs();
-    const interval = setInterval(fetchLogs, 5000);
+    const interval = setInterval(fetchLogs, 20000);
     return () => clearInterval(interval);
   }, []);
 
@@ -40,7 +40,7 @@ export default function SignalsView() {
       setTraces(json.agents || []);
     }
     fetchTraces();
-    const interval = setInterval(fetchTraces, 5000);
+    const interval = setInterval(fetchTraces, 20000);
     return () => clearInterval(interval);
   }, []);
 

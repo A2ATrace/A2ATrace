@@ -1,14 +1,27 @@
 import "./agentcard.scss"
 import { motion } from "framer-motion"
 
-const AgentCard = () => {
 
 
+type Agent = {
+  name?: string;
+  version?: string;
+  description?: string;
+  methods?: string[];
+  endpoints?: Record<string, string>;
+  labels?: Record<string, string>;
+};
+
+
+const AgentCard = ({agent}:{agent: Agent}) => {
     const cardVariants = {
         hidden: { opacity: 0, x: -3 },
         visible: { opacity: 1, x: 0 }
-
     }
+
+    const methods = agent.methods ?? []
+    const endpointEntries = Object.entries(agent.endpoints ?? {});
+    const labelEntries = Object.entries(agent.labels ?? {});
 
     return(
         <motion.section 
@@ -23,12 +36,35 @@ const AgentCard = () => {
         transition={{ duration: 0.1, ease: "linear" }} // Hover animation
         className="agent-card-wrapper"
       >
-            <div className="agent-header">
-                <h2>Context Agent</h2>
-                <div className="agent-status">
-                    <span>Online</span>
-                    <span className="status-dot online pulse"></span>
-                </div>
+        <div className="agent-header">
+            <h2>{agent.name} : {agent.version}</h2>
+            <div className="agent-status">
+                <span>Online</span>
+                <span className="status-dot online pulse"></span>
+            </div>
+        </div>
+
+            <div className="agent-body">
+                <h2 className="card-description">{agent.description}</h2>
+                <h2>Methods:</h2>
+                {methods.map((method:string) => (
+                    <h2>{method}</h2>
+                ))}
+                <ul>
+                   {endpointEntries.map(([key, value]) => (
+                    <li key={key}>
+                        {key}: {value}
+                    </li>
+                ))} 
+                </ul>
+                <ul>
+                   {labelEntries.map(([key, value]) => (
+                    <li key={key}>
+                        {key}: {value}
+                    </li>
+                ))} 
+                </ul>
+                
             </div>
             </motion.div>
         </motion.section>
