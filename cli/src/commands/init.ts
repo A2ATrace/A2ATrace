@@ -1,19 +1,19 @@
-import fs from "fs-extra";
-import path from "path";
-import { randomUUID } from "crypto";
-import chalk from "chalk";
-import findPort from "find-open-port";
-import os from "os";
+import fs from 'fs-extra';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import chalk from 'chalk';
+import findPort from 'find-open-port';
+import os from 'os';
 
 export default async function init() {
   const homeDir = os.homedir();
-  const configDir = path.join(homeDir, ".a2a");
-  const configPath = path.join(configDir, "config.json");
-  const collectorPath = path.join(configDir, "collector-config.yaml");
-  const prometheusPath = path.join(configDir, "prometheus.yml");
-  const tempoPath = path.join(configDir, "tempo.yaml");
-  const dockerComposePath = path.join(configDir, "docker-compose.yml");
-  const registryPath = path.join(configDir, "agents.json");
+  const configDir = path.join(homeDir, '.a2a');
+  const configPath = path.join(configDir, 'config.json');
+  const collectorPath = path.join(configDir, 'collector-config.yaml');
+  const prometheusPath = path.join(configDir, 'prometheus.yml');
+  const tempoPath = path.join(configDir, 'tempo.yaml');
+  const dockerComposePath = path.join(configDir, 'docker-compose.yml');
+  const registryPath = path.join(configDir, 'agents.json');
 
   await fs.ensureDir(configDir);
 
@@ -25,6 +25,7 @@ export default async function init() {
   const lokiPort = await findPort({ start: 3100 });
   const tempoHttpPort = await findPort({ start: 3200 });
   const tempoGrpcPort = await findPort({ start: 4320 }); // unify everything on 4320
+  const grafanaPort = await findPort({ start: 3000 });
   const dashboardPort = await findPort({ start: 4000 });
 
   // 🔹 Global config.json
@@ -32,7 +33,7 @@ export default async function init() {
     registry: registryPath,
     collector: {
       endpointHttp: `http://localhost:${collectorHttpPort}/v1/traces`,
-      endpointGrpc: `http://localhost:${collectorGrpcPort}`
+      endpointGrpc: `http://localhost:${collectorGrpcPort}`,
     },
     ports: {
       prometheus: promUiPort,
@@ -40,17 +41,18 @@ export default async function init() {
       tempoHttp: tempoHttpPort,
       tempoGrpc: tempoGrpcPort,
       prometheusExporter: promExporterPort,
-      dashboard: dashboardPort
+      grafana: grafanaPort,
+      dashboard: dashboardPort,
     },
     files: {
       collector: collectorPath,
       prometheus: prometheusPath,
       tempo: tempoPath,
-      dockerCompose: dockerComposePath
-    }
+      dockerCompose: dockerComposePath,
+    },
   };
   await fs.writeJson(configPath, config, { spaces: 2 });
-  console.log(chalk.green("✅ Wrote global config.json with dynamic ports"));
+  console.log(chalk.green('✅ Wrote global config.json with dynamic ports'));
 
   // 🔹 Collector config
   const collectorYaml = `
@@ -109,7 +111,7 @@ service:
       processors: [batch]
       exporters: [loki, debug]
 `;
-  await fs.writeFile(collectorPath, collectorYaml, "utf8");
+  await fs.writeFile(collectorPath, collectorYaml, 'utf8');
 
   // 🔹 Prometheus config
   const prometheusYaml = `
@@ -121,7 +123,7 @@ scrape_configs:
     static_configs:
       - targets: ["otel-collector:8889"]
 `;
-  await fs.writeFile(prometheusPath, prometheusYaml, "utf8");
+  await fs.writeFile(prometheusPath, prometheusYaml, 'utf8');
 
   // 🔹 Tempo config (unify ports to 4320 gRPC, 3200 HTTP)
   const tempoYaml = `
@@ -155,7 +157,7 @@ storage:
     local:
       path: /tmp/tempo/blocks
 `;
-  await fs.writeFile(tempoPath, tempoYaml, "utf8");
+  await fs.writeFile(tempoPath, tempoYaml, 'utf8');
 
   // 🔹 Docker Compose
   const dockerYaml = `
@@ -193,19 +195,42 @@ services:
     ports:
       - "${tempoHttpPort}:3200"
       - "${tempoGrpcPort}:4320"
-`;
-  await fs.writeFile(dockerComposePath, dockerYaml, "utf8");
 
-  console.log(chalk.green("✅ Wrote docker-compose.yml with dynamic ports"));
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "${grafanaPort}:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+volumes:
+  grafana-storage:
+`;
+  await fs.writeFile(dockerComposePath, dockerYaml, 'utf8');
+
+  console.log(chalk.green('✅ Wrote docker-compose.yml with dynamic ports'));
 
   // 🔹 Debug summary
   console.log(chalk.blue(`ℹ️ A2A initialized at ${configDir}`));
-  console.log(chalk.yellow("🔍 Debug info:"));
-  console.log(chalk.yellow(`   Collector HTTP: http://localhost:${collectorHttpPort}/v1/traces`));
-  console.log(chalk.yellow(`   Collector gRPC: localhost:${collectorGrpcPort}`));
+  console.log(chalk.yellow('🔍 Debug info:'));
+  console.log(
+    chalk.yellow(
+      `   Collector HTTP: http://localhost:${collectorHttpPort}/v1/traces`
+    )
+  );
+  console.log(
+    chalk.yellow(`   Collector gRPC: localhost:${collectorGrpcPort}`)
+  );
   console.log(chalk.yellow(`   Prometheus UI: http://localhost:${promUiPort}`));
   console.log(chalk.yellow(`   Loki: http://localhost:${lokiPort}`));
   console.log(chalk.yellow(`   Tempo HTTP: http://localhost:${tempoHttpPort}`));
   console.log(chalk.yellow(`   Tempo gRPC: localhost:${tempoGrpcPort}`));
-  console.log(chalk.yellow(`   Dashboard (reserved): http://localhost:${dashboardPort}`));
+  console.log(chalk.yellow(`   Grafana: http://localhost:${grafanaPort}`));
+  console.log(
+    chalk.yellow(`   Dashboard (reserved): http://localhost:${dashboardPort}`)
+  );
 }
