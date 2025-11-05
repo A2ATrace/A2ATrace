@@ -105,37 +105,21 @@ export default async function startDashboard() {
         const agents = await loadAgents();
         if (!agents.length) return res.json({ agents: [] });
 
+        const endNs = BigInt(Date.now()) * 1000000n; // Loki expects ns
+        const startNs = endNs - 5n * 60n * 1000000000n; // last 5 minutes
+
         const results = await Promise.all(
           agents.map(async (agent: any) => {
             const serviceName = agent.name;
-            // Use BigInt for nanosecond precision to avoid JS number overflow
-            const endNs = (BigInt(Date.now()) * 1000000n).toString();
-            const startNs = (
-              BigInt(Date.now()) * 1000000n -
-              6n * 60n * 60n * 1000000000n
-            ).toString(); // last 6 hours
-            const lokiQuery = `{exporter="OTLP",job="${serviceName}"}`;
+            // Broad query; refine labels as needed per agent instrumentation
+            const query = `{job=~".+"}`;
             const url = `http://localhost:${
               config.ports.loki
             }/loki/api/v1/query_range?query=${encodeURIComponent(
-              lokiQuery
-            )}&direction=BACKWARD&limit=200&start=${startNs}&end=${endNs}&step=5s`;
-            let r = await fetch(url);
-            let logs = await r.json();
-            // Fallback: if empty, try broader query by exporter only over 24h
-            if (!logs?.data?.result?.length) {
-              const start2 = (
-                BigInt(Date.now()) * 1000000n -
-                24n * 60n * 60n * 1000000000n
-              ).toString();
-              const url2 = `http://localhost:${
-                config.ports.loki
-              }/loki/api/v1/query_range?query=${encodeURIComponent(
-                '{exporter="OTLP"}'
-              )}&direction=BACKWARD&limit=200&start=${start2}&end=${endNs}&step=1m`;
-              r = await fetch(url2);
-              logs = await r.json();
-            }
+              query
+            )}&direction=BACKWARD&limit=100&start=${startNs.toString()}&end=${endNs.toString()}&step=5s`;
+            const r = await fetch(url);
+            const logs = await r.json();
             return { agent: serviceName, logs };
           })
         );
