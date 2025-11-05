@@ -8,8 +8,6 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
   const [metrics, setMetrics] = useState<AgentMetrics[]>([]);
   const [logs, setLogs] = useState<AgentLogs[]>([]);
   const [traces, setTraces] = useState<AgentTraces[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
 
   // ---- Metrics ----
   const fetchMetrics = async () => {
@@ -49,17 +47,6 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
     const interval = setInterval(fetchTraces, 20000);
     return () => clearInterval(interval);
   }, []);
-
-  // Manual refresh
-  const refreshNow = async () => {
-    try {
-      setIsRefreshing(true);
-      await Promise.all([fetchMetrics(), fetchLogs(), fetchTraces()]);
-      setLastRefreshed(Date.now());
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   // Helpers moved outside of JSX
   const nsToLocalTime = (ns: string): string => {
@@ -129,34 +116,6 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
 
   return (
     <div style={{ padding: '0.5rem 0', fontFamily: 'sans-serif' }}>
-      <div
-        style={{
-          display: 'flex',
-          gap: '0.5rem',
-          alignItems: 'center',
-          marginBottom: '0.5rem',
-        }}
-      >
-        <button
-          onClick={refreshNow}
-          disabled={isRefreshing}
-          style={{
-            background: '#1f2937',
-            color: '#e5e7eb',
-            border: '1px solid #374151',
-            padding: '0.35rem 0.6rem',
-            borderRadius: 6,
-            cursor: isRefreshing ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {isRefreshing ? 'Refreshing…' : 'Refresh now'}
-        </button>
-        {lastRefreshed && (
-          <span style={{ opacity: 0.75, fontSize: '0.9rem' }}>
-            Updated at {new Date(lastRefreshed).toLocaleTimeString()}
-          </span>
-        )}
-      </div>
       <h2>📊 Metrics</h2>
       {metricSummary.map((m, i) => (
         <div key={i} style={{ marginBottom: '0.5rem' }}>
