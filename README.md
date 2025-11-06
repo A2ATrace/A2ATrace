@@ -76,13 +76,13 @@ Runs docker compose … up -d against ~/.a2a/docker-compose.yml
 Boots the local dashboard server (Express + WebSocket)
 Serves the UI from client/dist (or the baked cli/client-dist fallback)
 
-Reports URLs:
-Collector: config.collector.endpointHttp
-Prometheus: http://localhost:<prometheus port>
-Loki: http://localhost:<loki port>
-Tempo: http://localhost:<tempo port>
-Grafana: http://localhost:<grafana port>
-Dashboard UI: http://localhost:<dashboard port> **Open To View Dashboard**
+Reports URLs:  
+Collector: config.collector.endpointHttp  
+Prometheus: http://localhost:<prometheus port>  
+Loki: http://localhost:<loki port>  
+Tempo: http://localhost:<tempo port>  
+Grafana: http://localhost:<grafana port>  
+Dashboard UI: http://localhost:<dashboard port> **Open To View Dashboard**  
 
 
 ## Common Issues
