@@ -51,25 +51,47 @@ const AgentCard = ({ agent, onClick }: Props) => {
         </div>
 
         <div className='agent-body'>
-          <h2 className='card-description'>{agent.description}</h2>
-          <h2>Methods:</h2>
-          {methods.map((method: string) => (
-            <h2>{method}</h2>
-          ))}
-          <ul>
-            {endpointEntries.map(([key, value]) => (
-              <li key={key}>
-                {key}: {value}
-              </li>
-            ))}
-          </ul>
-          <ul>
-            {labelEntries.map(([key, value]) => (
-              <li key={key}>
-                {key}: {value}
-              </li>
-            ))}
-          </ul>
+          <p className='card-description'>{agent.description}</p>
+
+          {methods.length > 0 && (
+            <div className='card-section'>
+              <h3 className='section-title'>Methods</h3>
+              <div className='method-badges'>
+                {methods.map((method: string, idx: number) => (
+                  <span key={idx} className='method-badge'>
+                    {method}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {labelEntries.length > 0 && (
+            <div className='card-section'>
+              <h3 className='section-title'>Labels</h3>
+              <div className='label-tags'>
+                {labelEntries.map(([key, value]) => (
+                  <span key={key} className='label-tag'>
+                    <span className='label-key'>{key}:</span> {value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {endpointEntries.length > 0 && (
+            <div className='card-section endpoints'>
+              <h3 className='section-title'>Endpoints</h3>
+              <ul className='endpoint-list'>
+                {endpointEntries.map(([key, value]) => (
+                  <li key={key}>
+                    <span className='endpoint-key'>{key}</span>
+                    <span className='endpoint-value'>{value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </motion.div>
     </motion.section>

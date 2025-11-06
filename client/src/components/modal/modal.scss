@@ -1,7 +1,8 @@
 .a2a-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11,67 +12,103 @@
 .a2a-modal {
   width: min(900px, 92vw);
   max-height: 84vh;
-  background: #11151a;
-  border: 1px solid #2a2f36;
-  border-radius: 10px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
-  color: #e5e7eb; /* high-contrast light text */
+  color: #222;
+  font-family: 'Oswald', sans-serif, Arial, Helvetica, sans-serif;
 }
 
 .a2a-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #2a2f36;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .a2a-modal-title {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #222;
 }
 
 .a2a-modal-close {
   background: transparent;
   border: none;
-  color: #cbd5e1;
-  font-size: 1.4rem;
+  color: #666;
+  font-size: 1.8rem;
   cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.a2a-modal-close:hover {
+  color: rgba(50, 147, 226, 0.8);
 }
 
 .a2a-modal-body {
-  padding: 1rem;
+  padding: 1.25rem;
   overflow: auto;
-  color: #e5e7eb;
+  color: #333;
+  font-weight: 300;
 }
 
-.a2a-modal-body h2,
+.a2a-modal-body h2 {
+  color: #222;
+  font-size: 1.25rem;
+  font-weight: 400;
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.a2a-modal-body h2:first-child {
+  margin-top: 0;
+}
+
 .a2a-modal-body h3 {
-  color: #f3f4f6;
+  color: #444;
+  font-size: 1rem;
+  font-weight: 400;
 }
 
 .a2a-modal-body p,
 .a2a-modal-body li {
-  color: #e5e7eb;
+  color: #555;
+  font-weight: 300;
+}
+
+.a2a-modal-body strong {
+  color: #222;
+  font-weight: 400;
 }
 
 .a2a-modal-body ul {
   padding-left: 1.25rem;
+  list-style: none;
 }
 
 .a2a-modal-body li {
-  margin-bottom: 0.25rem;
-  white-space: pre-wrap; /* keep log lines readable */
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(245, 247, 250, 0.6);
+  border-radius: 6px;
+  border-left: 3px solid rgba(50, 147, 226, 0.3);
+  white-space: pre-wrap;
   word-break: break-word;
 }
 
 .a2a-modal-body pre {
-  background: #0b1015;
-  color: #dbeafe; /* light blue for code/json */
-  border: 1px solid #243042;
+  background: rgba(245, 247, 250, 0.8);
+  color: #333;
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 6px;
   padding: 0.75rem;
   overflow: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
 }
