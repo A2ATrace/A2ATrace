@@ -8,10 +8,20 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": [
+    "telemetry",
+    "observability",
+    "opentelemetry",
+    "dashboard",
+    "agent-monitoring"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/A2ATrace/A2ATrace.git",
+    "directory": "client"
+  },
+  "description": "A2A Agent Telemetry Dashboard - Real-time monitoring and visualization for agent telemetry data",
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.4",
     "framer-motion": "^12.23.24",

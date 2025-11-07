@@ -6,20 +6,25 @@ import { execa } from 'execa';
 import chalk from 'chalk';
 import express from 'express';
 import fetch from 'node-fetch';
-import os from 'os';
 import { WebSocketServer } from 'ws';
+import {
+  GLOBAL_CONFIG_PATH,
+  REGISTRY_PATH,
+  DOCKER_COMPOSE_PATH,
+} from '../config.js';
+import type { AgentCard } from '../types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, '../..');
 
+const HEARTBEAT_INTERVAL_MS = 10000; // Broadcast heartbeat every 10 seconds
+
 export default async function startDashboard() {
   try {
-    const homeDir = os.homedir();
-    const configDir = path.join(homeDir, '.a2a');
-    const configPath = path.join(configDir, 'config.json');
-    const agentsPath = path.join(configDir, 'agents.json');
-    const dockerComposePath = path.join(configDir, 'docker-compose.yml');
+    const configPath = GLOBAL_CONFIG_PATH;
+    const agentsPath = REGISTRY_PATH;
+    const dockerComposePath = DOCKER_COMPOSE_PATH;
 
     if (!(await fs.pathExists(configPath))) {
       console.error(
@@ -28,13 +33,55 @@ export default async function startDashboard() {
       process.exit(1);
     }
 
+    // 🔹 Verify Docker is available
+    try {
+      await execa('docker', ['--version']);
+    } catch (err) {
+      console.error(chalk.red('❌ Docker is not installed or not in PATH'));
+      console.error(
+        chalk.yellow('   Please install Docker Desktop or Docker Engine')
+      );
+      process.exit(1);
+    }
+
+    // 🔹 Verify Docker Compose is available
+    try {
+      await execa('docker', ['compose', 'version']);
+    } catch (err) {
+      console.error(chalk.red('❌ Docker Compose is not available'));
+      console.error(
+        chalk.yellow('   Please ensure Docker Compose plugin is installed')
+      );
+      process.exit(1);
+    }
+
+    // 🔹 Check if Docker daemon is running
+    try {
+      await execa('docker', ['info']);
+    } catch (err) {
+      console.error(chalk.red('❌ Docker daemon is not running'));
+      console.error(
+        chalk.yellow('   Please start Docker Desktop or the Docker service')
+      );
+      process.exit(1);
+    }
+
     const config = await fs.readJson(configPath);
 
     // 🔹 Start Docker stack
     console.log(chalk.blue('🐳 Starting telemetry stack...'));
-    await execa('docker', ['compose', '-f', dockerComposePath, 'up', '-d'], {
-      stdio: 'inherit',
-    });
+    try {
+      await execa('docker', ['compose', '-f', dockerComposePath, 'up', '-d'], {
+        stdio: 'inherit',
+      });
+    } catch (err) {
+      console.error(chalk.red('❌ Failed to start Docker containers'));
+      console.error(
+        chalk.yellow('   Error:'),
+        err instanceof Error ? err.message : String(err)
+      );
+      process.exit(1);
+    }
 
     console.log(chalk.green('✅ Telemetry stack running!'));
     console.log(
@@ -60,9 +107,9 @@ export default async function startDashboard() {
     const dashboardPort = config.ports.dashboard || 4000;
 
     // helper to load agents
-    async function loadAgents() {
+    async function loadAgents(): Promise<AgentCard[]> {
       if (await fs.pathExists(agentsPath)) {
-        return await fs.readJson(agentsPath);
+        return (await fs.readJson(agentsPath)) as AgentCard[];
       }
       return [];
     }
@@ -78,7 +125,7 @@ export default async function startDashboard() {
         if (!agents.length) return res.json({ agents: [] });
 
         const results = await Promise.all(
-          agents.map(async (agent: any) => {
+          agents.map(async (agent: AgentCard) => {
             const serviceName = agent.name;
             const promQL = `questions_total{service_name="${serviceName}"}`;
             const r = await fetch(
@@ -92,10 +139,11 @@ export default async function startDashboard() {
         );
 
         res.json({ agents: results });
-      } catch (err: any) {
-        res
-          .status(500)
-          .json({ error: 'Metrics fetch failed', details: err.message });
+      } catch (err) {
+        res.status(500).json({
+          error: 'Metrics fetch failed',
+          details: err instanceof Error ? err.message : String(err),
+        });
       }
     });
 
@@ -109,7 +157,7 @@ export default async function startDashboard() {
         const startNs = endNs - 5n * 60n * 1000000000n; // last 5 minutes
 
         const results = await Promise.all(
-          agents.map(async (agent: any) => {
+          agents.map(async (agent: AgentCard) => {
             const serviceName = agent.name;
             // Broad query; refine labels as needed per agent instrumentation
             const query = `{job=~".+"}`;
@@ -125,10 +173,11 @@ export default async function startDashboard() {
         );
 
         res.json({ agents: results });
-      } catch (err: any) {
-        res
-          .status(500)
-          .json({ error: 'Logs fetch failed', details: err.message });
+      } catch (err) {
+        res.status(500).json({
+          error: 'Logs fetch failed',
+          details: err instanceof Error ? err.message : String(err),
+        });
       }
     });
 
@@ -139,7 +188,7 @@ export default async function startDashboard() {
         if (!agents.length) return res.json({ agents: [] });
 
         const results = await Promise.all(
-          agents.map(async (agent: any) => {
+          agents.map(async (agent: AgentCard) => {
             const serviceName = agent.name;
             const url = `http://localhost:${config.ports.tempoHttp}/api/search`;
             const r = await fetch(url);
@@ -152,10 +201,30 @@ export default async function startDashboard() {
         );
 
         res.json({ agents: results });
-      } catch (err: any) {
-        res
-          .status(500)
-          .json({ error: 'Traces fetch failed', details: err.message });
+      } catch (err) {
+        res.status(500).json({
+          error: 'Traces fetch failed',
+          details: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+
+    // ---- Trace details: returns full trace with attributes ----
+    app.get('/api/traces/:traceId', async (req, res) => {
+      try {
+        const { traceId } = req.params;
+        const url = `http://localhost:${config.ports.tempoHttp}/api/traces/${traceId}`;
+        const r = await fetch(url);
+        const ct = r.headers.get('content-type') || '';
+        const trace = ct.includes('application/json')
+          ? await r.json()
+          : { error: await r.text() };
+        res.json(trace);
+      } catch (err) {
+        res.status(500).json({
+          error: 'Trace fetch failed',
+          details: err instanceof Error ? err.message : String(err),
+        });
       }
     });
 
@@ -201,7 +270,7 @@ export default async function startDashboard() {
       } catch (err) {
         console.warn('Polling failed:', err);
       }
-    }, 10000);
+    }, HEARTBEAT_INTERVAL_MS);
   } catch (err) {
     console.error(chalk.red('❌ Failed to start dashboard stack:'), err);
   }

@@ -1,8 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import './spansview.scss';
+import type {
+  AgentMetrics,
+  AgentLogs,
+  AgentTraces,
+  LogEntry,
+  TraceData,
+} from '../../types';
 
-type AgentMetrics = { agent: string; metrics: any };
-type AgentLogs = { agent: string; logs: any };
-type AgentTraces = { agent: string; traces: any };
+const POLLING_INTERVAL_MS = 20000; // Poll every 20 seconds
 
 export default function SignalsView({ agentName }: { agentName?: string }) {
   const [metrics, setMetrics] = useState<AgentMetrics[]>([]);
@@ -10,21 +16,18 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
   const [traces, setTraces] = useState<AgentTraces[]>([]);
 
   // Accumulated history for display
-  const [allLogs, setAllLogs] = useState<
-    { ts: string; msg: string; level?: string; traceId?: string }[]
-  >([]);
-  const [allTraces, setAllTraces] = useState<any[]>([]);
+  const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
+  const [allTraces, setAllTraces] = useState<TraceData[]>([]);
 
   // ---- Metrics ----
   const fetchMetrics = async () => {
     const res = await fetch('/api/metrics');
     const json = await res.json();
-    console.log('METRICS', json);
     setMetrics(json.agents || []);
   };
   useEffect(() => {
     fetchMetrics();
-    const interval = setInterval(fetchMetrics, 20000);
+    const interval = setInterval(fetchMetrics, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -32,12 +35,11 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
   const fetchLogs = async () => {
     const res = await fetch('/api/logs');
     const json = await res.json();
-    console.log('LOGS', json);
     setLogs(json.agents || []);
   };
   useEffect(() => {
     fetchLogs();
-    const interval = setInterval(fetchLogs, 20000);
+    const interval = setInterval(fetchLogs, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -45,12 +47,11 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
   const fetchTraces = async () => {
     const res = await fetch('/api/traces');
     const json = await res.json();
-    console.log('TRACES', json);
     setTraces(json.agents || []);
   };
   useEffect(() => {
     fetchTraces();
-    const interval = setInterval(fetchTraces, 20000);
+    const interval = setInterval(fetchTraces, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -73,7 +74,7 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
     const items = pickAgent(metrics);
     return items.map((m) => {
       const res = m.metrics?.data?.result ?? [];
-      const total = res.reduce((acc: number, it: any) => {
+      const total = res.reduce((acc: number, it) => {
         const val = parseFloat(it.value?.[1] ?? '0');
         return acc + (isNaN(val) ? 0 : val);
       }, 0);
@@ -92,7 +93,7 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
     }[] = [];
     items.forEach((l) => {
       const streams = l.logs?.data?.result ?? [];
-      streams.forEach((s: any) => {
+      streams.forEach((s) => {
         const level = s.stream?.level || s.stream?.severity;
         (s.values || []).forEach((v: [string, string]) => {
           let text = v[1];
@@ -160,24 +161,70 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
   // Process and accumulate new traces
   useEffect(() => {
     const items = pickAgent(traces);
-    const newTraces: any[] = [];
+    const newTraces: TraceData[] = [];
     items.forEach((t) => {
-      const arr = t.traces?.traces || t.traces || [];
-      arr.forEach((x: any) => newTraces.push(x));
+      const arr = t.traces?.traces || [];
+      if (Array.isArray(arr)) {
+        arr.forEach((x) => newTraces.push(x));
+      }
     });
 
     if (newTraces.length > 0) {
-      setAllTraces((prev) => {
-        // Merge new traces with existing, remove duplicates by traceId
-        const merged = [...prev, ...newTraces];
-        const unique = Array.from(
-          new Map(merged.map((trace) => [trace.traceId, trace])).values()
+      // Fetch trace details to get question and answer attributes
+      const fetchTraceDetails = async () => {
+        const enrichedTraces = await Promise.all(
+          newTraces.map(async (trace) => {
+            try {
+              const res = await fetch(`/api/traces/${trace.traceID}`);
+              const details = await res.json();
+
+              // Extract attributes from the trace
+              let question = '';
+              let answer = '';
+
+              if (
+                details.batches?.[0]?.scopeSpans?.[0]?.spans?.[0]?.attributes
+              ) {
+                const attrs =
+                  details.batches[0].scopeSpans[0].spans[0].attributes;
+                const questionAttr = attrs.find(
+                  (a: { key: string; value: { stringValue?: string } }) =>
+                    a.key === 'user.question'
+                );
+                const answerAttr = attrs.find(
+                  (a: { key: string; value: { stringValue?: string } }) =>
+                    a.key === 'response.answer_preview'
+                );
+
+                if (questionAttr?.value?.stringValue) {
+                  question = questionAttr.value.stringValue;
+                }
+                if (answerAttr?.value?.stringValue) {
+                  answer = answerAttr.value.stringValue;
+                }
+              }
+
+              return { ...trace, question, answer };
+            } catch (err) {
+              return trace;
+            }
+          })
         );
-        unique.sort((a, b) =>
-          a.startTimeUnixNano > b.startTimeUnixNano ? -1 : 1
-        );
-        return unique.slice(0, 10);
-      });
+
+        setAllTraces((prev) => {
+          // Merge new traces with existing, remove duplicates by traceId
+          const merged = [...prev, ...enrichedTraces];
+          const unique = Array.from(
+            new Map(merged.map((trace) => [trace.traceID, trace])).values()
+          );
+          unique.sort((a, b) =>
+            a.startTimeUnixNano > b.startTimeUnixNano ? -1 : 1
+          );
+          return unique.slice(0, 10);
+        });
+      };
+
+      fetchTraceDetails();
     }
   }, [traces, agentName]);
 
@@ -193,10 +240,10 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
   }, [allTraces]);
 
   return (
-    <div style={{ padding: '0.5rem 0', fontFamily: 'sans-serif' }}>
+    <div className='signals-view'>
       <h2>📊 Metrics</h2>
       {metricSummary.map((m, i) => (
-        <div key={i} style={{ marginBottom: '0.5rem' }}>
+        <div key={i} className='metric-item'>
           <strong>{m.agent}</strong>: total questions ={' '}
           <strong>{m.total}</strong>
         </div>
@@ -207,14 +254,10 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
         <ul>
           {logItems.map((l, i) => (
             <li key={i}>
-              <span style={{ opacity: 0.8 }}>{nsToLocalTime(l.ts)}</span>
+              <span className='timestamp'>{nsToLocalTime(l.ts)}</span>
               {' — '}
               <strong>Q:</strong> {l.question}
-              {l.latency && (
-                <span style={{ marginLeft: '0.5rem', opacity: 0.7 }}>
-                  ({l.latency} ms)
-                </span>
-              )}
+              {l.latency && <span className='latency'>({l.latency} ms)</span>}
             </li>
           ))}
         </ul>
@@ -223,18 +266,28 @@ export default function SignalsView({ agentName }: { agentName?: string }) {
       )}
 
       <h2>📡 Traces</h2>
-      <div style={{ marginBottom: '0.5rem' }}>
+      <div className='trace-summary'>
         Total: <strong>{traceSummary.count}</strong> · Avg duration:{' '}
         <strong>{traceSummary.avgMs} ms</strong>
       </div>
       {traceSummary.latest.length ? (
         <ul>
-          {traceSummary.latest.map((t: any, i: number) => (
+          {traceSummary.latest.map((t, i: number) => (
             <li key={i}>
-              <span style={{ opacity: 0.8 }}>
+              <span className='timestamp'>
                 {nsToLocalTime(t.startTimeUnixNano)}
               </span>
               {` — ${t.rootTraceName || 'trace'} (${t.durationMs ?? '?'} ms)`}
+              {t.question && (
+                <div className='trace-details'>
+                  <strong>Q:</strong> {t.question}
+                </div>
+              )}
+              {t.answer && (
+                <div className='trace-details'>
+                  <strong>A:</strong> {t.answer}
+                </div>
+              )}
             </li>
           ))}
         </ul>

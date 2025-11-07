@@ -6,10 +6,9 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noImplicitAny": false,
     "forceConsistentCasingInFileNames": true,
-    "rootDir": "src",          // 👈 points to your TypeScript sources
-    "outDir": "dist"           // 👈 compiled JS goes here
+    "rootDir": "src",
+    "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "src/server/proxy.ts"]
+  "include": ["src/**/*.ts"]
 }

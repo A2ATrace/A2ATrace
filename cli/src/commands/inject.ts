@@ -1,7 +1,7 @@
-import fs from "fs-extra";
-import path from "path";
-import chalk from "chalk";
-import { randomUUID } from "crypto";
+import fs from 'fs-extra';
+import path from 'path';
+import chalk from 'chalk';
+import { randomUUID } from 'crypto';
 
 /**
  * a2a inject
@@ -10,28 +10,32 @@ import { randomUUID } from "crypto";
  */
 export default async function inject() {
   const agentDir = process.cwd();
-
-   if (typeof agentDir !== "string") {
-    throw new TypeError(`Expected agentDir to be a string, got ${typeof agentDir}`);
-  }
-  const cardPath = path.join(agentDir, "agent-card.json");
+  const cardPath = path.join(agentDir, 'agent-card.json');
 
   // Don't overwrite an existing card unless you later add a --force flag
   if (await fs.pathExists(cardPath)) {
-    console.log(chalk.yellow("ℹ️ agent-card.json already exists in this folder — skipping"));
-    console.log(chalk.blue("👉 Edit it in VS Code, then run `a2a link` to add/update the global registry."));
+    console.log(
+      chalk.yellow(
+        'ℹ️ agent-card.json already exists in this folder — skipping'
+      )
+    );
+    console.log(
+      chalk.blue(
+        '👉 Edit it in VS Code, then run `a2a link` to add/update the global registry.'
+      )
+    );
     return;
   }
 
   // Fully local boilerplate; users edit this, then `a2a link` consumes it.
   const boilerplate = {
-    id: `agent://uuid/${randomUUID()}`,        // unique, stable per agent
-    name: "YourAgent",                         // REQUIRED: change this before linking
-    version: "0.1.0",                          // recommended semantic version
-    description: "Short description of what this agent does.",
+    id: `agent://uuid/${randomUUID()}`, // unique, stable per agent
+    name: 'YourAgent', // REQUIRED: change this before linking
+    version: '0.1.0', // recommended semantic version
+    description: 'Short description of what this agent does.',
     // Optional: if your agent serves a live card endpoint, put it here.
     // If provided, `a2a link` will try fetching from this URL first.
-    url: "",
+    url: '',
 
     // What operations this agent exposes (free-form, used by your dashboard UX)
     methods: [
@@ -58,10 +62,14 @@ export default async function inject() {
     labels: {
       // "team": "core",
       // "env": "dev"
-    }
+    },
   };
 
   await fs.writeJson(cardPath, boilerplate, { spaces: 2 });
   console.log(chalk.green(`✅ Created agent-card.json in ${agentDir}`));
-  console.log(chalk.blue("👉 Open this file in VS Code, update at least `name` (and anything else), then run `a2a link`."));
+  console.log(
+    chalk.blue(
+      '👉 Open this file in VS Code, update at least `name` (and anything else), then run `a2a link`.'
+    )
+  );
 }

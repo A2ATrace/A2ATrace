@@ -1,19 +1,25 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { randomUUID } from 'crypto';
 import chalk from 'chalk';
 import findPort from 'find-open-port';
-import os from 'os';
+import {
+  CONFIG_DIR,
+  GLOBAL_CONFIG_PATH,
+  COLLECTOR_CONFIG_PATH,
+  PROMETHEUS_CONFIG_PATH,
+  TEMPO_CONFIG_PATH,
+  DOCKER_COMPOSE_PATH,
+  REGISTRY_PATH,
+} from '../config.js';
 
 export default async function init() {
-  const homeDir = os.homedir();
-  const configDir = path.join(homeDir, '.a2a');
-  const configPath = path.join(configDir, 'config.json');
-  const collectorPath = path.join(configDir, 'collector-config.yaml');
-  const prometheusPath = path.join(configDir, 'prometheus.yml');
-  const tempoPath = path.join(configDir, 'tempo.yaml');
-  const dockerComposePath = path.join(configDir, 'docker-compose.yml');
-  const registryPath = path.join(configDir, 'agents.json');
+  const configDir = CONFIG_DIR;
+  const configPath = GLOBAL_CONFIG_PATH;
+  const collectorPath = COLLECTOR_CONFIG_PATH;
+  const prometheusPath = PROMETHEUS_CONFIG_PATH;
+  const tempoPath = TEMPO_CONFIG_PATH;
+  const dockerComposePath = DOCKER_COMPOSE_PATH;
+  const registryPath = REGISTRY_PATH;
 
   await fs.ensureDir(configDir);
 

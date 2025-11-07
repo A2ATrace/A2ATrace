@@ -1,29 +1,26 @@
-import fs from "fs-extra";
-import path from "path";
-import chalk from "chalk";
-import fetch from "node-fetch";
-import os from "os";
+import fs from 'fs-extra';
+import path from 'path';
+import chalk from 'chalk';
+import fetch from 'node-fetch';
+import { CONFIG_DIR, REGISTRY_PATH, GLOBAL_CONFIG_PATH } from '../config.js';
+import type { AgentCard } from '../types.js';
 
-// ---- Paths ----
-const REGISTRY_DIR = path.join(os.homedir(), ".a2a");
-const REGISTRY_PATH = path.join(REGISTRY_DIR, "agents.json");
-const GLOBAL_CONFIG_PATH = path.join(REGISTRY_DIR, "config.json");
 const agentDir = process.cwd();
 
 // ---- Registry helpers ----
-async function loadRegistry(): Promise<any[]> {
+async function loadRegistry(): Promise<AgentCard[]> {
   if (await fs.pathExists(REGISTRY_PATH)) {
     return fs.readJson(REGISTRY_PATH);
   }
   return [];
 }
 
-async function saveRegistry(registry: any[]) {
-  await fs.ensureDir(REGISTRY_DIR);
+async function saveRegistry(registry: AgentCard[]) {
+  await fs.ensureDir(CONFIG_DIR);
   await fs.writeJson(REGISTRY_PATH, registry, { spaces: 2 });
 }
 
-function upsertAgent(registry: any[], agent: any) {
+function upsertAgent(registry: AgentCard[], agent: AgentCard) {
   const idx = registry.findIndex((a) => a.name === agent.name);
   if (idx >= 0) {
     const oldAgent = registry[idx];
@@ -37,17 +34,24 @@ function upsertAgent(registry: any[], agent: any) {
 }
 
 // ---- README injector ----
-async function injectReadme(agent: any) {
-  const readmePath = path.join(agentDir, "A2A-README.md");
+async function injectReadme(agent: AgentCard) {
+  const readmePath = path.join(agentDir, 'A2A-README.md');
 
-  let otelEndpoint = "http://localhost:4318";
+  let otelEndpoint = 'http://localhost:4318';
   try {
     const globalConfig = await fs.readJson(GLOBAL_CONFIG_PATH);
     if (globalConfig?.collector?.endpointHttp) {
-      otelEndpoint = String(globalConfig.collector.endpointHttp).replace(/\/v1\/traces$/, "");
+      otelEndpoint = String(globalConfig.collector.endpointHttp).replace(
+        /\/v1\/traces$/,
+        ''
+      );
     }
   } catch {
-    console.warn(chalk.yellow("⚠️ Could not load global config.json, using default OTEL endpoint"));
+    console.warn(
+      chalk.yellow(
+        '⚠️ Could not load global config.json, using default OTEL endpoint'
+      )
+    );
   }
 
   const content = `
@@ -115,26 +119,32 @@ export const logger = loggerProvider.getLogger("${agent.name}");
 Now run your agent. Telemetry will flow into your A2A dashboard.
 `;
 
-  await fs.writeFile(readmePath, content, "utf8");
+  await fs.writeFile(readmePath, content, 'utf8');
   console.log(chalk.green(`📘 Created A2A-README.md in ${agentDir}`));
 }
 
 // ---- Main link command ----
 export default async function linkAgent() {
-  const cardPath = path.join(agentDir, "agent-card.json");
+  const cardPath = path.join(agentDir, 'agent-card.json');
   if (!(await fs.pathExists(cardPath))) {
-    console.error(chalk.red(`❌ No agent-card.json found in ${agentDir}. Run "a2a inject" first.`));
+    console.error(
+      chalk.red(
+        `❌ No agent-card.json found in ${agentDir}. Run "a2a inject" first.`
+      )
+    );
     return;
   }
 
-  const card = await fs.readJson(cardPath);
-  let finalCard: any = null;
+  const card = (await fs.readJson(cardPath)) as AgentCard;
+  let finalCard: AgentCard | null = null;
 
   // Validate agent name before doing anything
-  if (!card.name || card.name === "YourAgent") {
+  if (!card.name || card.name === 'YourAgent') {
     console.error(
-      chalk.red("❌ Invalid agent-card.json: please edit 'name' in VS Code before running `a2a link`."))
-    ;
+      chalk.red(
+        "❌ Invalid agent-card.json: please edit 'name' in VS Code before running `a2a link`."
+      )
+    );
     return;
   }
 
@@ -146,10 +156,18 @@ export default async function linkAgent() {
         finalCard = await res.json();
         console.log(chalk.green(`✅ Pulled agent card from URL: ${card.url}`));
       } else {
-        console.warn(chalk.yellow(`⚠️ URL returned ${res.status}, falling back to local file`));
+        console.warn(
+          chalk.yellow(
+            `⚠️ URL returned ${res.status}, falling back to local file`
+          )
+        );
       }
     } catch {
-      console.warn(chalk.yellow(`⚠️ Failed to fetch ${card.url}, falling back to local file`));
+      console.warn(
+        chalk.yellow(
+          `⚠️ Failed to fetch ${card.url}, falling back to local file`
+        )
+      );
     }
   }
 

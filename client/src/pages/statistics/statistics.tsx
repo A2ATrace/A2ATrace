@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Navbar from '../../components/navbar/navbar';
 import TitleNav from '../../components/titlenav/titlenav';
+import './statistics.scss';
 
 const LOCAL_KEY = 'a2a.grafana.dashboardUrl';
 
@@ -17,7 +18,7 @@ export default function Statistics() {
     fetch('/api/grafana')
       .then((r) => r.json())
       .then((j) => setGrafanaBase(j.baseUrl))
-      .catch(() => {});
+      .catch((err) => console.error('Failed to fetch Grafana URL:', err));
   }, []);
 
   function saveUrl() {
@@ -51,22 +52,17 @@ export default function Statistics() {
       <TitleNav />
       <Navbar />
 
-      <section
-        className='dashboard-body-wrapper'
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          padding: '1rem',
-        }}
-      >
-        <div>
-          <h2>Agent Statistics</h2>
-          <p style={{ color: '#aaa' }}>
-            Paste the Grafana dashboard URL (Share → Link or Embed) and click
-            Save. We’ll remember it for next time.
-          </p>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <section className='dashboard-body-wrapper'>
+        <div className='statistics-container'>
+          <div className='statistics-header'>
+            <h2>Agent Statistics</h2>
+            <p>
+              Paste the Grafana dashboard URL (Share → Link or Embed) and click
+              Save. We'll remember it for next time.
+            </p>
+          </div>
+
+          <div className='statistics-controls'>
             <input
               type='text'
               value={dashboardUrl}
@@ -76,38 +72,27 @@ export default function Statistics() {
                   ? `${grafanaBase}/d/<uid>/<slug>`
                   : 'Grafana dashboard URL'
               }
-              style={{ flex: 1, padding: '0.5rem' }}
             />
-            <button onClick={saveUrl} style={{ padding: '0.5rem 1rem' }}>
-              Save
-            </button>
+            <button onClick={saveUrl}>Save</button>
             {grafanaBase && (
-              <a
-                href={grafanaBase}
-                target='_blank'
-                rel='noreferrer'
-                style={{ padding: '0.5rem 1rem' }}
-              >
+              <a href={grafanaBase} target='_blank' rel='noreferrer'>
                 Open Grafana
               </a>
             )}
           </div>
-        </div>
 
-        {embedUrl ? (
-          <iframe
-            src={embedUrl}
-            title='Grafana Dashboard'
-            style={{
-              width: '100%',
-              height: '75vh',
-              border: '1px solid #333',
-              borderRadius: 8,
-            }}
-          />
-        ) : (
-          <div style={{ color: '#ccc' }}>Waiting for Grafana base URL…</div>
-        )}
+          {embedUrl ? (
+            <iframe
+              src={embedUrl}
+              title='Grafana Dashboard'
+              className='statistics-iframe'
+            />
+          ) : (
+            <div className='statistics-loading'>
+              Waiting for Grafana base URL…
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

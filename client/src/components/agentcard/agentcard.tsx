@@ -1,18 +1,10 @@
 import './agentcard.scss';
 import { motion } from 'framer-motion';
-
-type Agent = {
-  name?: string;
-  version?: string;
-  description?: string;
-  methods?: string[];
-  endpoints?: Record<string, string>;
-  labels?: Record<string, string>;
-};
+import type { AgentCard as AgentCardType } from '../../types';
 
 type Props = {
-  agent: Agent;
-  onClick?: (agent: Agent) => void;
+  agent: AgentCardType;
+  onClick?: (agent: AgentCardType) => void;
 };
 
 const AgentCard = ({ agent, onClick }: Props) => {

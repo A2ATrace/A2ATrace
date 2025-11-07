@@ -1,1 +1,1 @@
-{"root":["./src/index.ts","./src/commands/agents.ts","./src/commands/init.ts","./src/commands/inject.ts","./src/commands/link.ts","./src/commands/start-dashboard.ts","./src/utils/telemetry.ts"],"version":"5.9.3"}
+{"root":["./src/config.ts","./src/find-open-port.d.ts","./src/index.ts","./src/types.ts","./src/commands/agents.ts","./src/commands/init.ts","./src/commands/inject.ts","./src/commands/link.ts","./src/commands/start-dashboard.ts"],"version":"5.9.3"}

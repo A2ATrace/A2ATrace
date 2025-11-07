@@ -6,12 +6,13 @@ import Navbar from '../../components/navbar/navbar';
 import TitleNav from '../../components/titlenav/titlenav';
 import SpansView from '../../components/metricsview/spansview';
 import Modal from '../../components/modal/modal';
-// import MetricsView from "../../components/metricsview/metricsview"
-// import LogsView from "../../components/metricsview/logsview"
+import type { AgentCard as AgentCardType } from '../../types';
 
 const Dashboard = () => {
-  const [agents, setAgents] = useState<any[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
+  const [agents, setAgents] = useState<AgentCardType[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<AgentCardType | null>(
+    null
+  );
 
   useEffect(() => {
     async function fetchAgents() {

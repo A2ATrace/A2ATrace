@@ -17,10 +17,17 @@ const Navbar = () => {
             Agent Statistics
           </NavLink>
         </nav>
-        <a href='#' className='settings-wrapper'>
-          <img className='gear' src={gearIcon} alt='settings gear'></img>
+        <button
+          className='settings-wrapper'
+          onClick={() => {
+            // Settings functionality to be implemented
+          }}
+          type='button'
+          aria-label='Settings'
+        >
+          <img className='gear' src={gearIcon} alt='settings gear' />
           <div className='settings'>Settings</div>
-        </a>
+        </button>
       </div>
     </aside>
   );
