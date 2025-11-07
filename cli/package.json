@@ -9,7 +9,7 @@
     "dev": "node --import ./register-ts-node.mjs src/index.ts",
     "build": "tsc -b",
     "start": "node dist/index.js",
-    "prepublishOnly": "cd ../client && npm run build && rm -rf ../cli/client-dist && cp -r dist ../cli/client-dist"
+    "frontend": "cd ../client && npm run build && rm -rf ../cli/client-dist && cp -r dist ../cli/client-dist"
   },
   "files": [
     "dist",
